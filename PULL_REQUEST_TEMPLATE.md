@@ -8,7 +8,7 @@ Before you submit a PR, please check that:
 - [ ] You added a brief description of the PR, e.g.:
   - What does it do?
   - Highlighted what important points reviewers should know?
-  - Indicated if there something left for follow-up PRs?
+  - Indicates if there is something left for follow-up PRs.
 - [ ] Your code has been reviewed by members of the team.
 - [ ] Documentation updated
 - [ ] Business logic tested successfully
