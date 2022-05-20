@@ -5,7 +5,7 @@ Thank you!
 
 Before you submit a PR, please check that:
 
-- [ ] You added a brief description of the PR, e.g.:
+- [ ] You describe the purpose of the PR, e.g.:
   - What does it do?
   - Highlights what important points reviewers should know about;
   - Indicates if there is something left for follow-up PRs.
