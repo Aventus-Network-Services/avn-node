@@ -9,7 +9,6 @@ Before you submit a PR, please check that:
   - What does it do?
   - Highlights what important points reviewers should know about;
   - Indicates if there is something left for follow-up PRs.
-- [ ] Your code has been reviewed by members of the team.
 - [ ] Documentation updated
 - [ ] Business logic tested successfully
 - [ ] Verify First, Write Last: In Substrate development, it is important that you always ensure preconditions are met and return errors at the beginning. After these checks have completed, then you may begin the function's computation.
