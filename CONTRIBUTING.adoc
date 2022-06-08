@@ -14,9 +14,9 @@ There are a few basic ground-rules for contributors (including the maintainer(s)
 
 == Contributing a Pallet
 
-When contributing a pallet, please ensure your files:
+When contributing a pallet, please ensure:
 
-- Contain a README.md following this format [here].
+- Your files contain a README.md following this format xref:pallet_contribution_template.md[here].
 - The pallet compiles successfully.
 
 
