@@ -1,8 +1,6 @@
 # Security Policy
 
 Aventus Network is committed to resolving security vulnerabilities quickly and carefully. We make every effort to ensure that risks are minimised and vulnerability fixes are delivered quickly to address security issues.
-
-
 ## Reporting a Vulnerability
 
 **Please do not report a security issue using a public ticket or forum.**
