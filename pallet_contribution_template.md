@@ -1,4 +1,4 @@
-# Token Manager
+# Pallet Name
 
 A brief description of your pallet as well as a list of the traits in the pallet.
 
@@ -7,8 +7,6 @@ For example:
 - Module
 - Call
 - Storage
-- Config
-- Event
 
 ## Overview
 
