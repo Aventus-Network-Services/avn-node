@@ -24,4 +24,4 @@ A list of the dispatachable functions in the pallet.
 
 ## AvN Pallet Dependencies
 
-A list of the AvN specific pallet that your pallet is dependent on.
+A list of the AvN specific pallets that your pallet is dependent on.
