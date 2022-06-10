@@ -20,7 +20,7 @@ Provide an overview of your pallet. It should describe what the pallet does and 
 
 ### Dispatchable Functions
 
-A list of the dispatachable functions in the pallet.
+A list of the dispatchable functions in the pallet.
 
 ## AvN Pallet Dependencies
 
