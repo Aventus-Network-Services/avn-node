@@ -1,6 +1,6 @@
 = Contributing
 
-It's great you're considering contributing to the Aventus Network codebase! We welcome contributions from anyone, and are grateful for even the smallest of fixes! Everyone is welcome to contribute on the codebase.  
+It's great you're considering contributing to the Aventus Network codebase! We welcome contributions from anyone, and are grateful for the smallest of fixes and even new pallets! Everyone is welcome to contribute to the codebase.  
 
 
 == Rules
@@ -11,6 +11,13 @@ There are a few basic ground-rules for contributors (including the maintainer(s)
 . **Non-master branches**, prefixed with a short name moniker (e.g. `jay-my-feature`) must be used for ongoing work.
 . **All modifications** must be made in a **pull-request** to solicit feedback from other contributors.
 . A pull-request *must not be merged until CI* has finished successfully.
+
+== Contributing a Pallet
+
+When contributing a pallet, please ensure:
+
+- Your files contain a README.md following this format xref:pallet_contribution_template.md[here].
+- The pallet compiles successfully.
 
 
 == Merge Process
