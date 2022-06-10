@@ -12,7 +12,7 @@ A module for handling all tokens are managed on the AvN. It is used within the A
 
 ---
 
-The token-manager pallet handles how tokens are managed on the AvN. It keeps track of the account balance of the individual tokens, the nonce of the account for all tokens held by the account, etc. Because the, AvN is designed to be a L2, all tokens must be lifted from a compatible L1.  
+The token-manager pallet handles how tokens are managed on the AvN. It keeps track of the account balance of the individual tokens, the nonce of the account for all tokens held by the account, etc. Because the AvN is designed to be a L2, all tokens must be lifted from a compatible L1.  
 
 ## Interface
 
