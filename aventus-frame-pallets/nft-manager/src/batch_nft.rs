@@ -1,11 +1,30 @@
+// This file is part of Aventus.
+// Copyright (C) 2022 Aventus Network Services (UK) Ltd.
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 use crate::*;
 use frame_support::dispatch::DispatchError;
 use sp_avn_common::event_types::NftMintData;
 
 pub const SIGNED_CREATE_BATCH_CONTEXT: &'static [u8] = b"authorization for create batch operation";
-pub const SIGNED_MINT_BATCH_NFT_CONTEXT: &'static [u8] = b"authorization for mint batch nft operation";
-pub const SIGNED_LIST_BATCH_FOR_SALE_CONTEXT: &'static [u8] = b"authorization for list batch for sale operation";
-pub const SIGNED_END_BATCH_SALE_CONTEXT: &'static [u8] = b"authorization for end batch sale operation";
+pub const SIGNED_MINT_BATCH_NFT_CONTEXT: &'static [u8] =
+    b"authorization for mint batch nft operation";
+pub const SIGNED_LIST_BATCH_FOR_SALE_CONTEXT: &'static [u8] =
+    b"authorization for list batch for sale operation";
+pub const SIGNED_END_BATCH_SALE_CONTEXT: &'static [u8] =
+    b"authorization for end batch sale operation";
 
 pub fn generate_batch_id<T: Config>(unique_id: NftUniqueId) -> U256 {
     let mut data_to_hash = BATCH_ID_CONTEXT.to_vec();
@@ -32,7 +51,9 @@ pub fn generate_batch_nft_id<T: Config>(batch_id: &NftBatchId, sales_index: &u64
     return U256::from(hash);
 }
 
-pub fn get_nft_info_for_batch<T: Config>(batch_id: &NftBatchId) -> Result<NftInfo<T::AccountId>, Error<T>> {
+pub fn get_nft_info_for_batch<T: Config>(
+    batch_id: &NftBatchId,
+) -> Result<NftInfo<T::AccountId>, Error<T>> {
     let nft_info_id = BatchInfoId::get(&batch_id);
     ensure!(
         <NftInfos<T>>::contains_key(&nft_info_id),
@@ -48,9 +69,16 @@ pub fn create_batch<T: Config>(
     royalties: Vec<Royalty>,
     total_supply: u64,
     t1_authority: H160,
-    creator: T::AccountId)
-{
-    let info = NftInfo::new_batch(info_id, batch_id, royalties, t1_authority, total_supply, creator);
+    creator: T::AccountId,
+) {
+    let info = NftInfo::new_batch(
+        info_id,
+        batch_id,
+        royalties,
+        t1_authority,
+        total_supply,
+        creator,
+    );
     BatchInfoId::insert(batch_id, &info.info_id);
     <NftInfos<T>>::insert(info.info_id, info);
 }
@@ -60,7 +88,7 @@ pub fn encode_create_batch_params<T: Config>(
     royalties: &Vec<Royalty>,
     t1_authority: &H160,
     total_supply: &u64,
-    nonce: &u64
+    nonce: &u64,
 ) -> Vec<u8> {
     return (
         SIGNED_CREATE_BATCH_CONTEXT,
@@ -69,7 +97,8 @@ pub fn encode_create_batch_params<T: Config>(
         royalties,
         t1_authority,
         nonce,
-    ).encode();
+    )
+        .encode();
 }
 
 pub fn encode_mint_batch_nft_params<T: Config>(
@@ -86,57 +115,83 @@ pub fn encode_mint_batch_nft_params<T: Config>(
         index,
         unique_external_ref,
         owner,
-    ).encode();
+    )
+        .encode();
 }
 
 pub fn encode_list_batch_for_sale_params<T: Config>(
     proof: &Proof<T::Signature, T::AccountId>,
     batch_id: &NftBatchId,
     market: &NftSaleType,
-    nonce: &u64) -> Vec<u8>
-{
+    nonce: &u64,
+) -> Vec<u8> {
     return (
         SIGNED_LIST_BATCH_FOR_SALE_CONTEXT,
         &proof.relayer,
         batch_id,
         market,
-        nonce
-    ).encode();
+        nonce,
+    )
+        .encode();
 }
 
 pub fn encode_end_batch_sale_params<T: Config>(
     proof: &Proof<T::Signature, T::AccountId>,
     batch_id: &NftBatchId,
-    nonce: &u64) -> Vec<u8>
-{
+    nonce: &u64,
+) -> Vec<u8> {
     return (
         SIGNED_END_BATCH_SALE_CONTEXT,
         &proof.relayer,
         batch_id,
-        nonce
-    ).encode();
+        nonce,
+    )
+        .encode();
 }
 
-pub fn process_mint_batch_nft_event<T: Config>(event_id: &EthEventId, data: &NftMintData) -> DispatchResult {
-    ensure!(T::ProcessedEventsChecker::check_event(event_id), Error::<T>::NoTier1EventForNftOperation);
-    ensure!(<BatchOpenForSale>::get(&data.batch_id) == NftSaleType::Ethereum, Error::<T>::BatchNotListedForEthereumSale);
+pub fn process_mint_batch_nft_event<T: Config>(
+    event_id: &EthEventId,
+    data: &NftMintData,
+) -> DispatchResult {
+    ensure!(
+        T::ProcessedEventsChecker::check_event(event_id),
+        Error::<T>::NoTier1EventForNftOperation
+    );
+    ensure!(
+        <BatchOpenForSale>::get(&data.batch_id) == NftSaleType::Ethereum,
+        Error::<T>::BatchNotListedForEthereumSale
+    );
 
     let owner = T::AccountId::decode(&mut data.t2_owner_public_key.as_bytes())
         .expect("32 bytes will always decode into an AccountId");
 
-    Ok(mint_batch_nft::<T>(data.batch_id, owner, data.sale_index, &data.unique_external_ref)?)
+    Ok(mint_batch_nft::<T>(
+        data.batch_id,
+        owner,
+        data.sale_index,
+        &data.unique_external_ref,
+    )?)
 }
 
 pub fn validate_mint_batch_nft_request<T: Config>(
     batch_id: NftBatchId,
-    unique_external_ref: &Vec<u8>) -> Result<NftInfo<T::AccountId>, DispatchError>
-{
+    unique_external_ref: &Vec<u8>,
+) -> Result<NftInfo<T::AccountId>, DispatchError> {
     ensure!(batch_id.is_zero() == false, Error::<T>::BatchIdIsMandatory);
-    ensure!(BatchInfoId::contains_key(&batch_id), Error::<T>::BatchDoesNotExist);
-    ensure!(<BatchOpenForSale>::contains_key(&batch_id) == true, Error::<T>::BatchNotListed);
+    ensure!(
+        BatchInfoId::contains_key(&batch_id),
+        Error::<T>::BatchDoesNotExist
+    );
+    ensure!(
+        <BatchOpenForSale>::contains_key(&batch_id) == true,
+        Error::<T>::BatchNotListed
+    );
 
     let nft_info = get_nft_info_for_batch::<T>(&batch_id)?;
-    ensure!((NftBatches::get(&batch_id).len() as u64) < nft_info.total_supply, Error::<T>::TotalSupplyExceeded);
+    ensure!(
+        (NftBatches::get(&batch_id).len() as u64) < nft_info.total_supply,
+        Error::<T>::TotalSupplyExceeded
+    );
 
     Module::<T>::validate_external_ref(unique_external_ref)?;
 
@@ -147,29 +202,51 @@ pub fn mint_batch_nft<T: Config>(
     batch_id: NftBatchId,
     owner: T::AccountId,
     sale_index: u64,
-    unique_external_ref: &Vec<u8>) -> DispatchResult
-{
+    unique_external_ref: &Vec<u8>,
+) -> DispatchResult {
     let nft_info = validate_mint_batch_nft_request::<T>(batch_id, unique_external_ref)?;
     let nft_id = generate_batch_nft_id::<T>(&batch_id, &sale_index);
-    ensure!(Nfts::<T>::contains_key(&nft_id) == false, Error::<T>::NftAlreadyExists);
+    ensure!(
+        Nfts::<T>::contains_key(&nft_id) == false,
+        Error::<T>::NftAlreadyExists
+    );
 
-    let nft = Nft::new(nft_id, nft_info.info_id, unique_external_ref.to_vec(), owner.clone());
+    let nft = Nft::new(
+        nft_id,
+        nft_info.info_id,
+        unique_external_ref.to_vec(),
+        owner.clone(),
+    );
     Module::<T>::add_nft_and_update_owner(&owner, &nft);
 
     let mut nfts_for_batch = NftBatches::get(batch_id);
     nfts_for_batch.push(nft_id);
     NftBatches::insert(batch_id, nfts_for_batch);
 
-    <crate::Module<T>>::deposit_event(RawEvent::BatchNftMinted(nft.nft_id, batch_id, nft_info.t1_authority, nft.owner));
+    <crate::Module<T>>::deposit_event(RawEvent::BatchNftMinted(
+        nft.nft_id,
+        batch_id,
+        nft_info.t1_authority,
+        nft.owner,
+    ));
 
     Ok(())
 }
 
-pub fn process_end_batch_listing_event<T: Config>(event_id: &EthEventId, data: &NftEndBatchListingData) -> DispatchResult {
-    ensure!(T::ProcessedEventsChecker::check_event(event_id), Error::<T>::NoTier1EventForNftOperation);
+pub fn process_end_batch_listing_event<T: Config>(
+    event_id: &EthEventId,
+    data: &NftEndBatchListingData,
+) -> DispatchResult {
+    ensure!(
+        T::ProcessedEventsChecker::check_event(event_id),
+        Error::<T>::NoTier1EventForNftOperation
+    );
 
     let market = <BatchOpenForSale>::get(data.batch_id);
-    ensure!(market == NftSaleType::Ethereum, Error::<T>::BatchNotListedForEthereumSale);
+    ensure!(
+        market == NftSaleType::Ethereum,
+        Error::<T>::BatchNotListedForEthereumSale
+    );
 
     end_batch_listing::<T>(&data.batch_id, market)?;
 
@@ -185,11 +262,16 @@ pub fn end_batch_listing<T: Config>(batch_id: &NftBatchId, market: NftSaleType) 
     Ok(())
 }
 
-pub fn validate_end_batch_listing_request<T: Config>(batch_id: &NftBatchId) -> DispatchResult
-{
+pub fn validate_end_batch_listing_request<T: Config>(batch_id: &NftBatchId) -> DispatchResult {
     ensure!(batch_id.is_zero() == false, Error::<T>::BatchIdIsMandatory);
-    ensure!(BatchInfoId::contains_key(batch_id), Error::<T>::BatchDoesNotExist);
-    ensure!(<BatchOpenForSale>::contains_key(batch_id) == true, Error::<T>::BatchNotListed);
+    ensure!(
+        BatchInfoId::contains_key(batch_id),
+        Error::<T>::BatchDoesNotExist
+    );
+    ensure!(
+        <BatchOpenForSale>::contains_key(batch_id) == true,
+        Error::<T>::BatchNotListed
+    );
 
     Ok(())
 }

@@ -35,8 +35,8 @@ use pallet_avn::{self as avn};
 use pallet_ethereum_events::{self as ethereum_events, ProcessedEventsChecker};
 use sp_avn_common::{
     event_types::{
-        EthEvent, EthEventId, EventData, NftCancelListingData, NftTransferToData,
-        ProcessedEventHandler, NftEndBatchListingData
+        EthEvent, EthEventId, EventData, NftCancelListingData, NftEndBatchListingData,
+        NftTransferToData, ProcessedEventHandler,
     },
     CallDecoder, InnerCallValidator, Proof,
 };
@@ -199,7 +199,6 @@ decl_storage! {
         /// The Id that will be used when creating the new NftInfo record
         pub NextInfoId get(fn next_info_id): NftInfoId;
         /// The Id that will be used when creating the new single Nft
-        //TODO: Rename this item because its not just used for single NFTs
         pub NextSingleNftUniqueId get(fn next_unique_id): U256;
         /// A mapping that keeps all the nfts that are open to sale in a specific market
         pub NftOpenForSale get(fn get_nft_open_for_sale_on): map hasher(blake2_128_concat) NftId => NftSaleType;
@@ -623,16 +622,21 @@ impl<T: Config> Module<T> {
     }
 
     fn validate_royalties(royalties: &Vec<Royalty>) -> DispatchResult {
-        // TODO: Review this comment https://github.com/Aventus-Network-Services/avn-tier2/pull/763#discussion_r617360380
         let invalid_rates_found = royalties.iter().any(|r| !r.rate.is_valid());
-        ensure!(invalid_rates_found == false, Error::<T>::RoyaltyRateIsNotValid);
+        ensure!(
+            invalid_rates_found == false,
+            Error::<T>::RoyaltyRateIsNotValid
+        );
 
         let rate_total = royalties
             .iter()
             .map(|r| r.rate.parts_per_million)
             .sum::<u32>();
 
-        ensure!(rate_total <= 1_000_000, Error::<T>::TotalRoyaltyRateIsNotValid);
+        ensure!(
+            rate_total <= 1_000_000,
+            Error::<T>::TotalRoyaltyRateIsNotValid
+        );
 
         Ok(())
     }
@@ -700,7 +704,7 @@ impl<T: Config> Module<T> {
         t1_authority: H160,
         nft_id: NftId,
         unique_external_ref: Vec<u8>,
-        owner: T::AccountId
+        owner: T::AccountId,
     ) -> (Nft<T::AccountId>, NftInfo<T::AccountId>) {
         let info = NftInfo::new(info_id, royalties, t1_authority);
         let nft = Nft::new(nft_id, info_id, unique_external_ref, owner.clone());
@@ -719,8 +723,6 @@ impl<T: Config> Module<T> {
     }
 
     /// The NftId for a single mint is calculated by this formula: uint256(keccak256(“A”, contract_address, unique_id))
-    // TODOs: Confirm that the data are packed the same as encodePacked.
-    // TODOs: Confirm that which data needs to be in BE format.
     fn generate_nft_id_single_mint(contract: &H160, unique_id: NftUniqueId) -> U256 {
         let mut data_to_hash = SINGLE_NFT_ID_CONTEXT.to_vec();
 
@@ -1013,13 +1015,25 @@ impl<T: Config> Module<T> {
                 let sender_nonce = Self::batch_nonce(&proof.signer);
                 return Some((
                     proof,
-                    encode_create_batch_params::<T>(proof, royalties, t1_authority, total_supply, &sender_nonce),
-                ))
+                    encode_create_batch_params::<T>(
+                        proof,
+                        royalties,
+                        t1_authority,
+                        total_supply,
+                        &sender_nonce,
+                    ),
+                ));
             }
             Call::signed_mint_batch_nft(proof, batch_id, index, owner, unique_external_ref) => {
                 return Some((
                     proof,
-                    encode_mint_batch_nft_params::<T>(proof, batch_id, index, unique_external_ref, owner),
+                    encode_mint_batch_nft_params::<T>(
+                        proof,
+                        batch_id,
+                        index,
+                        unique_external_ref,
+                        owner,
+                    ),
                 ))
             }
             Call::signed_list_batch_for_sale(proof, batch_id, market) => {
@@ -1027,14 +1041,14 @@ impl<T: Config> Module<T> {
                 return Some((
                     proof,
                     encode_list_batch_for_sale_params::<T>(proof, batch_id, market, &sender_nonce),
-                ))
+                ));
             }
             Call::signed_end_batch_sale(proof, batch_id) => {
                 let sender_nonce = Self::batch_nonce(&proof.signer);
                 return Some((
                     proof,
                     encode_end_batch_sale_params::<T>(proof, batch_id, &sender_nonce),
-                ))
+                ));
             }
             _ => return None,
         }
@@ -1045,9 +1059,15 @@ impl<T: Config + ethereum_events::Config> ProcessedEventHandler for Module<T> {
     fn on_event_processed(event: &EthEvent) -> DispatchResult {
         return match &event.event_data {
             EventData::LogNftTransferTo(data) => Self::transfer_eth_nft(&event.event_id, data),
-            EventData::LogNftCancelListing(data) => Self::cancel_eth_nft_listing(&event.event_id, data),
-            EventData::LogNftMinted(data) => process_mint_batch_nft_event::<T>(&event.event_id, data),
-            EventData::LogNftEndBatchListing(data) => process_end_batch_listing_event::<T>(&event.event_id, data),
+            EventData::LogNftCancelListing(data) => {
+                Self::cancel_eth_nft_listing(&event.event_id, data)
+            }
+            EventData::LogNftMinted(data) => {
+                process_mint_batch_nft_event::<T>(&event.event_id, data)
+            }
+            EventData::LogNftEndBatchListing(data) => {
+                process_end_batch_listing_event::<T>(&event.event_id, data)
+            }
             _ => Ok(()),
         };
     }
@@ -1137,7 +1157,7 @@ pub mod migrations {
                 royalties: self.royalties,
                 total_supply: self.total_supply,
                 t1_authority: self.t1_authority,
-                creator: None
+                creator: None,
             }
         }
     }
@@ -1152,7 +1172,6 @@ pub mod migrations {
         return T::BlockWeights::get().max_block;
     }
 }
-
 
 #[cfg(test)]
 #[path = "tests/mock.rs"]

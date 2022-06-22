@@ -88,9 +88,9 @@ pub struct NftInfo<AccountId: Member> {
     ///  - >1: it is for a batch
     pub total_supply: u64,
     /// Minter's tier 1 address
-    pub t1_authority: H160, //TODO: rename and remove t1 reference. Call it something like "provenance"
+    pub t1_authority: H160,
     /// The address of the initial creator
-    pub creator: Option<AccountId>
+    pub creator: Option<AccountId>,
 }
 
 impl<AccountId: Member> NftInfo<AccountId> {
@@ -101,7 +101,7 @@ impl<AccountId: Member> NftInfo<AccountId> {
             royalties,
             total_supply: 1u64,
             t1_authority,
-            creator: None
+            creator: None,
         };
     }
 
@@ -111,7 +111,7 @@ impl<AccountId: Member> NftInfo<AccountId> {
         royalties: Vec<Royalty>,
         t1_authority: H160,
         total_supply: u64,
-        creator: AccountId
+        creator: AccountId,
     ) -> Self {
         return NftInfo::<AccountId> {
             info_id,
@@ -119,7 +119,7 @@ impl<AccountId: Member> NftInfo<AccountId> {
             royalties,
             total_supply,
             t1_authority,
-            creator: Some(creator)
+            creator: Some(creator),
         };
     }
 }
