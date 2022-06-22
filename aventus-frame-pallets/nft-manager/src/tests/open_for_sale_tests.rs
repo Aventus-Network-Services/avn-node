@@ -21,6 +21,7 @@ use frame_system::RawOrigin;
 use hex_literal::hex;
 use mock::Event;
 use sp_runtime::traits::BadOrigin;
+use crate::mock::AccountId;
 
 mod open_for_sale {
     use super::*;
@@ -81,8 +82,8 @@ mod open_for_sale {
             return NftManager::generate_nft_id_single_mint(&self.t1_authority, self.unique_id);
         }
 
-        pub fn inject_nft_to_chain(&self) -> (Nft<AccountId>, NftInfo) {
-            return NftManager::insert_nft_into_chain(
+        pub fn inject_nft_to_chain(&self) -> (Nft<AccountId>, NftInfo<AccountId>) {
+            return NftManager::insert_single_nft_into_chain(
                 self.info_id,
                 self.royalties.clone(),
                 self.t1_authority,

@@ -22,6 +22,7 @@ use frame_system::RawOrigin;
 use hex_literal::hex;
 use mock::Event;
 use sp_runtime::traits::BadOrigin;
+use crate::mock::AccountId;
 
 mod mint_single_nft {
     use super::*;
@@ -91,21 +92,20 @@ mod mint_single_nft {
                 let context: Context = Default::default();
 
                 let expected_info_id: NftInfoId = NftManager::next_info_id();
+                let nft_id = context.generate_nft_id();
 
-                assert_eq!(
-                    false,
-                    <Nfts<TestRuntime>>::contains_key(&context.generate_nft_id())
-                );
-                assert_eq!(false, <NftInfos>::contains_key(&expected_info_id));
+                assert_eq!(false, <Nfts<TestRuntime>>::contains_key(&nft_id));
+                assert_eq!(false, <NftInfos<TestRuntime>>::contains_key(&expected_info_id));
                 assert_eq!(false, context.event_emitted_with_single_nft_minted());
 
                 assert_ok!(context.call_mint_single_nft());
 
+                assert_eq!(true, <Nfts<TestRuntime>>::contains_key(&nft_id));
+                assert_eq!(true, <NftInfos<TestRuntime>>::contains_key(&expected_info_id));
                 assert_eq!(
                     true,
-                    <Nfts<TestRuntime>>::contains_key(&context.generate_nft_id())
+                    nft_is_owned(&context.owner, &context.generate_nft_id())
                 );
-                assert_eq!(true, <NftInfos>::contains_key(&expected_info_id));
                 assert_eq!(true, context.event_emitted_with_single_nft_minted());
             });
         }
@@ -128,7 +128,7 @@ mod mint_single_nft {
                     false,
                     <Nfts<TestRuntime>>::contains_key(&context.generate_nft_id())
                 );
-                assert_eq!(false, <NftInfos>::contains_key(&expected_info_id));
+                assert_eq!(false, <NftInfos<TestRuntime>>::contains_key(&expected_info_id));
                 assert_eq!(false, context.event_emitted_with_single_nft_minted());
 
                 assert_noop!(context.call_mint_single_nft(), BadOrigin);
@@ -149,7 +149,7 @@ mod mint_single_nft {
                     false,
                     <Nfts<TestRuntime>>::contains_key(&context.generate_nft_id())
                 );
-                assert_eq!(false, <NftInfos>::contains_key(&expected_info_id));
+                assert_eq!(false, <NftInfos<TestRuntime>>::contains_key(&expected_info_id));
                 assert_eq!(false, context.event_emitted_with_single_nft_minted());
 
                 assert_noop!(
@@ -171,7 +171,7 @@ mod mint_single_nft {
                     false,
                     <Nfts<TestRuntime>>::contains_key(&context.generate_nft_id())
                 );
-                assert_eq!(false, <NftInfos>::contains_key(&expected_info_id));
+                assert_eq!(false, <NftInfos<TestRuntime>>::contains_key(&expected_info_id));
                 assert_eq!(false, context.event_emitted_with_single_nft_minted());
 
                 context.unique_external_ref = Vec::<u8>::new();
@@ -214,7 +214,7 @@ mod mint_single_nft {
                     false,
                     <Nfts<TestRuntime>>::contains_key(&context.generate_nft_id())
                 );
-                assert_eq!(false, <NftInfos>::contains_key(&expected_info_id));
+                assert_eq!(false, <NftInfos<TestRuntime>>::contains_key(&expected_info_id));
                 assert_eq!(false, context.event_emitted_with_single_nft_minted());
 
                 context.royalties = vec![Royalty {

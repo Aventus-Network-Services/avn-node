@@ -21,6 +21,7 @@ use hex_literal::hex;
 use mock::Event;
 use sp_avn_common::event_types::{EthEventId, ValidEvents};
 use sp_core::H256;
+use crate::mock::AccountId;
 
 mod transfer_eth_nft {
     use super::*;
@@ -87,8 +88,8 @@ mod transfer_eth_nft {
             return NftManager::generate_nft_id_single_mint(&self.t1_authority, self.unique_id);
         }
 
-        pub fn inject_nft_to_chain(&self) -> (Nft<AccountId>, NftInfo) {
-            return NftManager::insert_nft_into_chain(
+        pub fn inject_nft_to_chain(&self) -> (Nft<AccountId>, NftInfo<AccountId>) {
+            return NftManager::insert_single_nft_into_chain(
                 self.info_id,
                 self.royalties.clone(),
                 self.t1_authority,
@@ -155,12 +156,19 @@ mod transfer_eth_nft {
             ext.execute_with(|| {
                 let context: Context = Default::default();
                 context.setup_valid_transfer();
+
+                let new_nft_owner = context.new_owner_to_account_id();
+                let nft_id = context.nft_id();
+
+                assert_eq!(true, nft_is_owned(&context.nft_owner, &nft_id));
+                assert_eq!(false, nft_is_owned(&new_nft_owner, &nft_id));
+
                 assert_ok!(context.perform_transfer());
 
-                assert_eq!(
-                    context.new_owner_to_account_id(),
-                    NftManager::nfts(context.nft_id()).owner
-                );
+                assert_eq!(new_nft_owner, NftManager::nfts(context.nft_id()).owner);
+
+                assert_eq!(false, nft_is_owned(&context.nft_owner, &nft_id));
+                assert_eq!(true, nft_is_owned(&new_nft_owner, &nft_id));
             });
         }
 
