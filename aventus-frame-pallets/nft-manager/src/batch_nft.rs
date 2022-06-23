@@ -97,8 +97,7 @@ pub fn encode_create_batch_params<T: Config>(
         royalties,
         t1_authority,
         nonce,
-    )
-        .encode();
+    ).encode();
 }
 
 pub fn encode_mint_batch_nft_params<T: Config>(
@@ -115,8 +114,7 @@ pub fn encode_mint_batch_nft_params<T: Config>(
         index,
         unique_external_ref,
         owner,
-    )
-        .encode();
+    ).encode();
 }
 
 pub fn encode_list_batch_for_sale_params<T: Config>(
@@ -131,8 +129,7 @@ pub fn encode_list_batch_for_sale_params<T: Config>(
         batch_id,
         market,
         nonce,
-    )
-        .encode();
+    ).encode();
 }
 
 pub fn encode_end_batch_sale_params<T: Config>(
@@ -145,8 +142,7 @@ pub fn encode_end_batch_sale_params<T: Config>(
         &proof.relayer,
         batch_id,
         nonce,
-    )
-        .encode();
+    ).encode();
 }
 
 pub fn process_mint_batch_nft_event<T: Config>(
