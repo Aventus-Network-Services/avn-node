@@ -21,6 +21,8 @@ use hex_literal::hex;
 use mock::Event;
 use sp_avn_common::event_types::{EthEventId, ValidEvents};
 use sp_core::H256;
+use crate::mock::AccountId;
+
 
 mod cancel_single_nft_listing {
     use super::*;
@@ -84,8 +86,8 @@ mod cancel_single_nft_listing {
             return NftManager::generate_nft_id_single_mint(&self.t1_authority, self.unique_id);
         }
 
-        pub fn inject_nft_to_chain(&self) -> (Nft<AccountId>, NftInfo) {
-            return NftManager::insert_nft_into_chain(
+        pub fn inject_nft_to_chain(&self) -> (Nft<AccountId>, NftInfo<AccountId>) {
+            return NftManager::insert_single_nft_into_chain(
                 self.info_id,
                 self.royalties.clone(),
                 self.t1_authority,

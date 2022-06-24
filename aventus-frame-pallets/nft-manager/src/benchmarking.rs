@@ -33,6 +33,8 @@ extern crate alloc;
 #[cfg(not(feature = "std"))]
 use alloc::string::{String, ToString};
 
+const MNEMONIC: &str = "kiss mule sheriff twice make bike twice improve rate quote draw enough";
+
 fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
     assert_last_nth_event::<T>(generic_event, 1);
 }
@@ -64,6 +66,20 @@ fn get_proof<T: Config>(
     };
 }
 
+fn get_relayer<T: Config>() -> T::AccountId {
+    let relayer_account: H256 = H256(hex!(
+        "0000000000000000000000000000000000000000000000000000000000000001"
+    ));
+    return T::AccountId::decode(&mut relayer_account.as_bytes()).expect("valid relayer account id");
+}
+
+fn get_user_account<T: Config>() -> (<T as avn::Config>::AuthorityId, T::AccountId) {
+    let key_pair = <T as avn::Config>::AuthorityId::generate_pair(Some(MNEMONIC.as_bytes().to_vec()));
+    let account_bytes = into_bytes::<T>(&key_pair);
+    let account_id = T::AccountId::decode(&mut &account_bytes.encode()[..]).unwrap();
+    return (key_pair, account_id);
+}
+
 struct MintSingleNft<T: Config> {
     relayer: T::AccountId,
     nft_owner: T::AccountId,
@@ -77,18 +93,8 @@ struct MintSingleNft<T: Config> {
 
 impl<T: Config> MintSingleNft<T> {
     fn new(number_of_royalties: u32) -> Self {
-        let relayer_account: H256 = H256(hex!(
-            "0000000000000000000000000000000000000000000000000000000000000001"
-        ));
-        let relayer_account_account_id =
-            T::AccountId::decode(&mut relayer_account.as_bytes()).expect("valid lower account id");
-
-        let mnemonic: &str =
-            "kiss mule sheriff twice make bike twice improve rate quote draw enough";
-        let nft_owner_key_pair =
-            <T as avn::Config>::AuthorityId::generate_pair(Some(mnemonic.as_bytes().to_vec()));
-        let account_bytes = into_bytes::<T>(&nft_owner_key_pair);
-        let nft_owner_account_id = T::AccountId::decode(&mut &account_bytes.encode()[..]).unwrap();
+        let relayer_account_id = get_relayer::<T>();
+        let (nft_owner_key_pair, nft_owner_account_id) = get_user_account::<T>();
 
         let nft_id = U256::from([
             144, 32, 76, 127, 69, 26, 191, 42, 121, 72, 235, 94, 179, 147, 69, 29, 167, 189, 8, 44,
@@ -101,7 +107,7 @@ impl<T: Config> MintSingleNft<T> {
 
         let signed_payload = (
             SIGNED_MINT_SINGLE_NFT_CONTEXT,
-            &relayer_account_account_id,
+            &relayer_account_id,
             &unique_external_ref,
             &royalties,
             t1_authority,
@@ -112,7 +118,7 @@ impl<T: Config> MintSingleNft<T> {
             .encode();
 
         return MintSingleNft {
-            relayer: relayer_account_account_id,
+            relayer: relayer_account_id,
             nft_owner: nft_owner_account_id,
             nft_id: nft_id,
             info_id: U256::zero(),
@@ -138,7 +144,7 @@ impl<T: Config> MintSingleNft<T> {
 
     fn setup(self) -> Self {
         <Nfts<T>>::remove(&self.nft_id);
-        NftInfos::remove(&self.nft_id);
+        <NftInfos<T>>::remove(&self.nft_id);
         UsedExternalReferences::remove(&self.unique_external_ref);
         return self;
     }
@@ -170,18 +176,8 @@ struct ListNftOpenForSale<T: Config> {
 
 impl<T: Config> ListNftOpenForSale<T> {
     fn new() -> Self {
-        let relayer_account: H256 = H256(hex!(
-            "0000000000000000000000000000000000000000000000000000000000000001"
-        ));
-        let relayer_account_account_id =
-            T::AccountId::decode(&mut relayer_account.as_bytes()).expect("valid lower account id");
-
-        let mnemonic: &str =
-            "kiss mule sheriff twice make bike twice improve rate quote draw enough";
-        let nft_owner_key_pair =
-            <T as avn::Config>::AuthorityId::generate_pair(Some(mnemonic.as_bytes().to_vec()));
-        let account_bytes = into_bytes::<T>(&nft_owner_key_pair);
-        let nft_owner_account_id = T::AccountId::decode(&mut &account_bytes.encode()[..]).unwrap();
+        let relayer_account_id = get_relayer::<T>();
+        let (_, nft_owner_account_id) = get_user_account::<T>();
 
         let nft_id = U256::from(1u8);
         let nft = Nft::new(
@@ -195,7 +191,7 @@ impl<T: Config> ListNftOpenForSale<T> {
         let signature = hex!("6a767c9fb339b8ba6438f146f133ffd72b4d4b6745483f630a2dfdfecc57f240153ada88864251da658b837c661d82078e9c8eba8d09d47e487a3ab2b8d71a87");
 
         return ListNftOpenForSale {
-            relayer: relayer_account_account_id,
+            relayer: relayer_account_id,
             nft_owner: nft_owner_account_id,
             nft_id: nft_id,
             nft: nft,
@@ -233,18 +229,8 @@ struct TransferFiatNft<T: Config> {
 
 impl<T: Config> TransferFiatNft<T> {
     fn new() -> Self {
-        let relayer_account: H256 = H256(hex!(
-            "0000000000000000000000000000000000000000000000000000000000000001"
-        ));
-        let relayer_account_account_id =
-            T::AccountId::decode(&mut relayer_account.as_bytes()).expect("valid lower account id");
-
-        let mnemonic: &str =
-            "kiss mule sheriff twice make bike twice improve rate quote draw enough";
-        let nft_owner_key_pair =
-            <T as avn::Config>::AuthorityId::generate_pair(Some(mnemonic.as_bytes().to_vec()));
-        let account_bytes = into_bytes::<T>(&nft_owner_key_pair);
-        let nft_owner_account_id = T::AccountId::decode(&mut &account_bytes.encode()[..]).unwrap();
+        let relayer_account_id = get_relayer::<T>();
+        let (nft_owner_key_pair, nft_owner_account_id) = get_user_account::<T>();
 
         let nft_id = U256::from(1u8);
         let nft = Nft::new(
@@ -262,7 +248,7 @@ impl<T: Config> TransferFiatNft<T> {
 
         let signed_payload = (
             SIGNED_TRANSFER_FIAT_NFT_CONTEXT,
-            &relayer_account_account_id,
+            &relayer_account_id,
             nft_id,
             t2_transfer_to_public_key,
             op_id,
@@ -273,7 +259,7 @@ impl<T: Config> TransferFiatNft<T> {
             .encode();
 
         return TransferFiatNft {
-            relayer: relayer_account_account_id,
+            relayer: relayer_account_id,
             nft_owner: nft_owner_account_id,
             nft_id: nft_id,
             nft: nft,
@@ -312,18 +298,8 @@ struct CancelListFiatNft<T: Config> {
 
 impl<T: Config> CancelListFiatNft<T> {
     fn new() -> Self {
-        let relayer_account: H256 = H256(hex!(
-            "0000000000000000000000000000000000000000000000000000000000000001"
-        ));
-        let relayer_account_account_id =
-            T::AccountId::decode(&mut relayer_account.as_bytes()).expect("valid lower account id");
-
-        let mnemonic: &str =
-            "kiss mule sheriff twice make bike twice improve rate quote draw enough";
-        let nft_owner_key_pair =
-            <T as avn::Config>::AuthorityId::generate_pair(Some(mnemonic.as_bytes().to_vec()));
-        let account_bytes = into_bytes::<T>(&nft_owner_key_pair);
-        let nft_owner_account_id = T::AccountId::decode(&mut &account_bytes.encode()[..]).unwrap();
+        let relayer_account_id = get_relayer::<T>();
+        let (nft_owner_key_pair, nft_owner_account_id) = get_user_account::<T>();
 
         let nft_id = U256::from(1u8);
         let nft = Nft::new(
@@ -337,7 +313,7 @@ impl<T: Config> CancelListFiatNft<T> {
 
         let signed_payload = (
             SIGNED_CANCEL_LIST_FIAT_NFT_CONTEXT,
-            &relayer_account_account_id,
+            &relayer_account_id,
             nft_id,
             op_id,
         );
@@ -347,7 +323,7 @@ impl<T: Config> CancelListFiatNft<T> {
             .encode();
 
         return CancelListFiatNft {
-            relayer: relayer_account_account_id,
+            relayer: relayer_account_id,
             nft_owner: nft_owner_account_id,
             nft_id: nft_id,
             nft: nft,
@@ -372,6 +348,269 @@ impl<T: Config> CancelListFiatNft<T> {
     }
 }
 
+struct CreateBatch<T: Config> {
+    relayer: T::AccountId,
+    creator_account_id: T::AccountId,
+    total_supply: u64,
+    royalties: Vec<Royalty>,
+    t1_authority: H160,
+    signature: Vec<u8>,
+}
+
+impl<T: Config> CreateBatch<T> {
+    fn new(number_of_royalties: u32) -> Self {
+        let relayer_account_id = get_relayer::<T>();
+        let (creator_key_pair, creator_account_id) = get_user_account::<T>();
+
+        let total_supply = 100;
+        let royalties = Self::setup_royalties(number_of_royalties);
+        let t1_authority = H160(hex!("0000000000000000000000000000000000000001"));
+        let nonce = 0u64;
+
+        let signed_payload = (
+            SIGNED_CREATE_BATCH_CONTEXT,
+            &relayer_account_id,
+            &total_supply,
+            &royalties,
+            t1_authority,
+            nonce,
+        );
+        let signature = creator_key_pair.sign(&signed_payload.encode().as_slice()).unwrap().encode();
+
+        return CreateBatch {
+            relayer: relayer_account_id,
+            creator_account_id,
+            total_supply,
+            royalties,
+            t1_authority,
+            signature,
+        };
+    }
+
+    fn setup_royalties(number_of_royalties: u32) -> Vec<Royalty> {
+        let mut royalties: Vec<Royalty> = Vec::new();
+        for _r in 0..number_of_royalties {
+            royalties.push(Royalty {
+                recipient_t1_address: H160(hex!("afdf36201bf70F1232111b5c6a9a424558755134")),
+                rate: RoyaltyRate {
+                    parts_per_million: 1u32,
+                },
+            });
+        }
+        royalties
+    }
+
+    fn generate_signed_create_batch(&self) -> <T as Config>::Call {
+        let proof: Proof<T::Signature, T::AccountId> = get_proof::<T>(
+            self.creator_account_id.clone(),
+            self.relayer.clone(),
+            &self.signature,
+        );
+        return Call::signed_create_batch(
+            proof,
+            self.total_supply,
+            self.royalties.clone(),
+            self.t1_authority,
+        )
+        .into();
+    }
+
+    fn create_batch_for_setup(&self) -> U256 {
+        let batch_id = generate_batch_id::<T>(NextSingleNftUniqueId::get());
+        create_batch::<T>(
+            U256::zero(),
+            batch_id,
+            self.royalties.clone(),
+            self.total_supply,
+            self.t1_authority,
+            self.creator_account_id.clone()
+        );
+
+        <BatchNonces<T>>::mutate(&self.creator_account_id, |n| *n += 1);
+
+        return batch_id;
+    }
+}
+
+struct MintBatchNft<T: Config> {
+    relayer: T::AccountId,
+    nft_owner: T::AccountId,
+    batch_id: NftBatchId,
+    nft_id: U256,
+    unique_external_ref: Vec<u8>,
+    t1_authority: H160,
+    signature: Vec<u8>,
+}
+
+impl<T: Config> MintBatchNft<T> {
+    fn new() -> Self {
+        let index = 0u64;
+        let relayer_account_id = get_relayer::<T>();
+        let (nft_owner_key_pair, nft_owner_account_id) = get_user_account::<T>();
+
+        // create batch and list
+        let batch: CreateBatch<T> = CreateBatch::new(1);
+        let batch_id = batch.create_batch_for_setup();
+        <BatchOpenForSale>::insert(batch_id, NftSaleType::Fiat);
+
+        // Copied from batch_nft_tests.rs
+        // This value is generated from batch_id (generated itself with unique_id = 0) and index = 1
+        // nft_id = toBigEndian(generate_batch_nft_id(generate_batch_id(0), 1))
+        let nft_id = U256::from([
+            101, 94, 240, 118, 189, 202, 200, 247, 116, 145, 110, 133, 216, 128, 100, 172, 36, 189, 18, 53, 164, 178, 200,
+            65, 155, 27, 180, 246, 23, 91, 12, 175,
+        ]);
+
+        let unique_external_ref = String::from("Offchain location of NFT").into_bytes();
+        let t1_authority = H160(hex!("0000000000000000000000000000000000000001"));
+
+        let signed_payload = (
+            SIGNED_MINT_BATCH_NFT_CONTEXT,
+            &relayer_account_id,
+            batch_id,
+            index,
+            &unique_external_ref,
+            &nft_owner_account_id
+        );
+
+        let signature = nft_owner_key_pair
+            .sign(&signed_payload.encode().as_slice())
+            .unwrap()
+            .encode();
+
+        return MintBatchNft {
+            relayer: relayer_account_id,
+            nft_owner: nft_owner_account_id,
+            batch_id,
+            nft_id: nft_id,
+            unique_external_ref: unique_external_ref,
+            t1_authority: t1_authority,
+            signature: signature,
+        };
+    }
+
+    fn generate_signed_mint_batch_nft(&self, batch_id: U256, index: u64) -> <T as Config>::Call {
+        let proof: Proof<T::Signature, T::AccountId> = get_proof::<T>(
+            self.nft_owner.clone(),
+            self.relayer.clone(),
+            &self.signature,
+        );
+        return Call::signed_mint_batch_nft(
+            proof,
+            batch_id,
+            index,
+            self.nft_owner.clone(),
+            self.unique_external_ref.clone()
+        )
+        .into();
+    }
+}
+
+struct ListBatch<T: Config> {
+    relayer: T::AccountId,
+    creator_account_id: T::AccountId,
+    batch_id: NftBatchId,
+    market: NftSaleType,
+    signature: Vec<u8>,
+}
+
+impl<T: Config> ListBatch<T> {
+    fn new() -> Self {
+        let relayer_account_id = get_relayer::<T>();
+        let (creator_key_pair, creator_account_id) = get_user_account::<T>();
+
+        let market = NftSaleType::Fiat;
+
+        let batch: CreateBatch<T> = CreateBatch::new(1);
+        let batch_id = batch.create_batch_for_setup();
+        let nonce = <BatchNonces<T>>::get(&creator_account_id);
+
+        let signed_payload = (
+            SIGNED_LIST_BATCH_FOR_SALE_CONTEXT,
+            &relayer_account_id,
+            &batch_id,
+            &market,
+            nonce
+        );
+        let signature = creator_key_pair.sign(&signed_payload.encode().as_slice()).unwrap().encode();
+
+        return ListBatch {
+            relayer: relayer_account_id,
+            creator_account_id,
+            batch_id,
+            market,
+            signature,
+        };
+    }
+
+    fn generate_signed_list_batch(&self) -> <T as Config>::Call {
+        let proof: Proof<T::Signature, T::AccountId> = get_proof::<T>(
+            self.creator_account_id.clone(),
+            self.relayer.clone(),
+            &self.signature,
+        );
+        return Call::signed_list_batch_for_sale(
+            proof,
+            self.batch_id,
+            self.market,
+        )
+        .into();
+    }
+}
+
+struct EndBatchSale<T: Config> {
+    relayer: T::AccountId,
+    creator_account_id: T::AccountId,
+    batch_id: NftBatchId,
+    market: NftSaleType,
+    signature: Vec<u8>,
+}
+
+impl<T: Config> EndBatchSale<T> {
+    fn new() -> Self {
+        let relayer_account_id = get_relayer::<T>();
+        let (creator_key_pair, creator_account_id) = get_user_account::<T>();
+
+        let market = NftSaleType::Fiat;
+
+        let batch: CreateBatch<T> = CreateBatch::new(1);
+        let batch_id = batch.create_batch_for_setup();
+
+        <BatchOpenForSale>::insert(batch_id, market);
+
+        let nonce = <BatchNonces<T>>::get(&creator_account_id);
+
+        let signed_payload = (
+            SIGNED_END_BATCH_SALE_CONTEXT,
+            &relayer_account_id,
+            &batch_id,
+            nonce
+        );
+        let signature = creator_key_pair.sign(&signed_payload.encode().as_slice()).unwrap().encode();
+
+        return EndBatchSale {
+            relayer: relayer_account_id,
+            creator_account_id,
+            batch_id,
+            market,
+            signature,
+        };
+    }
+
+    fn generate_signed_end_batch_sale(&self) -> <T as Config>::Call {
+        let proof: Proof<T::Signature, T::AccountId> = get_proof::<T>(
+            self.creator_account_id.clone(),
+            self.relayer.clone(),
+            &self.signature,
+        );
+        return Call::signed_end_batch_sale(
+            proof,
+            self.batch_id,
+        )
+        .into();
+    }
+}
+
 benchmarks! {
     mint_single_nft {
         let r in 1 .. MAX_NUMBER_OF_ROYALTIES;
@@ -388,10 +627,10 @@ benchmarks! {
             Nft::new(mint_nft.nft_id, mint_nft.info_id, mint_nft.unique_external_ref.clone(), mint_nft.nft_owner.clone()),
             Nfts::<T>::get(&mint_nft.nft_id)
         );
-        assert_eq!(true, <NftInfos>::contains_key(&mint_nft.info_id));
+        assert_eq!(true, NftInfos::<T>::contains_key(&mint_nft.info_id));
         assert_eq!(
             NftInfo::new(mint_nft.info_id, mint_nft.royalties, mint_nft.t1_authority),
-            NftInfos::get(&mint_nft.info_id)
+            <NftInfos<T>>::get(&mint_nft.info_id)
         );
         assert_eq!(true, UsedExternalReferences::contains_key(&mint_nft.unique_external_ref));
         assert_eq!(true, UsedExternalReferences::get(mint_nft.unique_external_ref));
@@ -423,10 +662,10 @@ benchmarks! {
             Nft::new(mint_nft.nft_id, mint_nft.info_id, mint_nft.unique_external_ref.clone(), mint_nft.nft_owner.clone()),
             Nfts::<T>::get(&mint_nft.nft_id)
         );
-        assert_eq!(true, <NftInfos>::contains_key(&mint_nft.info_id));
+        assert_eq!(true, NftInfos::<T>::contains_key(&mint_nft.info_id));
         assert_eq!(
             NftInfo::new(mint_nft.info_id, mint_nft.royalties, mint_nft.t1_authority),
-            NftInfos::get(&mint_nft.info_id)
+            <NftInfos<T>>::get(&mint_nft.info_id)
         );
         assert_eq!(true, UsedExternalReferences::contains_key(&mint_nft.unique_external_ref));
         assert_eq!(true, UsedExternalReferences::get(mint_nft.unique_external_ref));
@@ -546,10 +785,10 @@ benchmarks! {
             Nft::new(mint_nft.nft_id, mint_nft.info_id, mint_nft.unique_external_ref.clone(), mint_nft.nft_owner.clone()),
             Nfts::<T>::get(&mint_nft.nft_id)
         );
-        assert_eq!(true, <NftInfos>::contains_key(&mint_nft.info_id));
+        assert_eq!(true, NftInfos::<T>::contains_key(&mint_nft.info_id));
         assert_eq!(
             NftInfo::new(mint_nft.info_id, mint_nft.royalties, mint_nft.t1_authority),
-            NftInfos::get(&mint_nft.info_id)
+            <NftInfos<T>>::get(&mint_nft.info_id)
         );
         assert_eq!(true, UsedExternalReferences::contains_key(&mint_nft.unique_external_ref));
         assert_eq!(true, UsedExternalReferences::get(mint_nft.unique_external_ref));
@@ -614,6 +853,84 @@ benchmarks! {
             cancel_list_fiat_nft.op_id
         ).into(), 2);
     }
+
+    proxy_signed_create_batch {
+        let r in 1 .. MAX_NUMBER_OF_ROYALTIES;
+        let batch: CreateBatch<T> = CreateBatch::new(r);
+        let call: <T as Config>::Call = batch.generate_signed_create_batch();
+        let boxed_call: Box<<T as Config>::Call> = Box::new(call);
+        let call_hash: T::Hash = T::Hashing::hash_of(&boxed_call);
+        let expected_batch_id = generate_batch_id::<T>(NextSingleNftUniqueId::get());
+    }: proxy(RawOrigin::<T::AccountId>::Signed(batch.relayer.clone()), boxed_call)
+    verify {
+        assert_eq!(true, BatchInfoId::contains_key(expected_batch_id));
+
+        let info = <NftInfos<T>>::get(BatchInfoId::get(expected_batch_id));
+        assert_eq!(Some(expected_batch_id), info.batch_id);
+        assert_eq!(batch.total_supply, info.total_supply);
+        assert_eq!(Some(batch.creator_account_id.clone()), info.creator);
+
+        assert_last_event::<T>(RawEvent::CallDispatched(batch.relayer.clone(), call_hash).into());
+        assert_last_nth_event::<T>(RawEvent::BatchCreated(
+            expected_batch_id,
+            batch.total_supply,
+            batch.creator_account_id,
+            batch.t1_authority
+        ).into(), 2);
+    }
+
+    proxy_signed_mint_batch_nft {
+        let index = 0u64;
+        let context: MintBatchNft<T> = MintBatchNft::new();
+        let call: <T as Config>::Call = context.generate_signed_mint_batch_nft(context.batch_id, index);
+        let boxed_call: Box<<T as Config>::Call> = Box::new(call);
+        let call_hash: T::Hash = T::Hashing::hash_of(&boxed_call);
+    }: proxy(RawOrigin::<T::AccountId>::Signed(context.relayer.clone()), boxed_call)
+    verify {
+        assert_eq!(NftBatches::get(context.batch_id)[0], context.nft_id);
+        assert_eq!(true, Nfts::<T>::contains_key(&context.nft_id));
+        assert_eq!(
+            Nft::new(context.nft_id, U256::zero(), context.unique_external_ref.clone(), context.nft_owner.clone()),
+            Nfts::<T>::get(&context.nft_id)
+        );
+        assert_eq!(true, UsedExternalReferences::contains_key(&context.unique_external_ref));
+        assert_eq!(true, UsedExternalReferences::get(context.unique_external_ref));
+
+        assert_last_event::<T>(RawEvent::CallDispatched(context.relayer.clone(), call_hash).into());
+        assert_last_nth_event::<T>(RawEvent::BatchNftMinted(
+            context.nft_id,
+            context.batch_id,
+            context.t1_authority,
+            context.nft_owner,
+        ).into(), 2);
+    }
+
+    proxy_signed_list_batch_for_sale {
+        let context: ListBatch<T> = ListBatch::new();
+        let call: <T as Config>::Call = context.generate_signed_list_batch();
+        let boxed_call: Box<<T as Config>::Call> = Box::new(call);
+        let call_hash: T::Hash = T::Hashing::hash_of(&boxed_call);
+    }: proxy(RawOrigin::<T::AccountId>::Signed(context.relayer.clone()), boxed_call)
+    verify {
+
+        assert_eq!(true, BatchOpenForSale::contains_key(&context.batch_id));
+        assert_eq!(BatchOpenForSale::get(&context.batch_id), context.market);
+
+        assert_last_event::<T>(RawEvent::CallDispatched(context.relayer.clone(), call_hash).into());
+        assert_last_nth_event::<T>(RawEvent::BatchOpenForSale(context.batch_id, context.market).into(), 2);
+    }
+
+    proxy_signed_end_batch_sale {
+        let context: EndBatchSale<T> = EndBatchSale::new();
+        let call: <T as Config>::Call = context.generate_signed_end_batch_sale();
+        let boxed_call: Box<<T as Config>::Call> = Box::new(call);
+        let call_hash: T::Hash = T::Hashing::hash_of(&boxed_call);
+    }: proxy(RawOrigin::<T::AccountId>::Signed(context.relayer.clone()), boxed_call)
+    verify {
+        assert_eq!(false, BatchOpenForSale::contains_key(&context.batch_id));
+        assert_last_event::<T>(RawEvent::CallDispatched(context.relayer.clone(), call_hash).into());
+        assert_last_nth_event::<T>(RawEvent::BatchSaleEnded(context.batch_id, context.market).into(), 2);
+    }
 }
 
 #[cfg(test)]
@@ -641,6 +958,10 @@ mod tests {
             assert_ok!(test_benchmark_proxy_signed_cancel_list_fiat_nft::<
                 TestRuntime,
             >());
+            assert_ok!(test_benchmark_proxy_signed_create_batch::<TestRuntime>());
+            assert_ok!(test_benchmark_proxy_signed_mint_batch_nft::<TestRuntime>());
+            assert_ok!(test_benchmark_proxy_signed_list_batch_for_sale::<TestRuntime>());
+            assert_ok!(test_benchmark_proxy_signed_end_batch_sale::<TestRuntime>());
         });
     }
 }

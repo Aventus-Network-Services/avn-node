@@ -11,7 +11,7 @@ A module for minting and managing NFTs.
 
 ---
 
-This pallet integrates NFTs into the Aventus blockchain on an infrastructure level allowing for the minting of NFTs without smart contracts. This pallet is used for the minting, listing and transferring of NFTs.
+This pallet integrates NFTs into the Aventus blockchain on an infrastructure level allowing for the minting of NFTs without smart contracts. This pallet is used for the minting, listing and transferring of NFTs, including batch NFTs.
 
 ## Interface
 
@@ -33,6 +33,7 @@ This pallet integrates NFTs into the Aventus blockchain on an infrastructure lev
 ## AvN Pallet Dependencies
 
 - `pallet_avn`
+- `ethereum-events`
 
 <!-- language: none -->
 

@@ -26,8 +26,8 @@ use frame_support::{
         DispatchErrorWithPostInfo, DispatchResult, DispatchResultWithPostInfo, Dispatchable,
     },
     ensure,
-    traits::IsSubType,
-    weights::PostDispatchInfo,
+    traits::{Get, IsSubType},
+    weights::{PostDispatchInfo, Weight},
     Parameter,
 };
 use frame_system::{self as system, ensure_signed};
@@ -35,8 +35,8 @@ use pallet_avn::{self as avn};
 use pallet_ethereum_events::{self as ethereum_events, ProcessedEventsChecker};
 use sp_avn_common::{
     event_types::{
-        EthEvent, EthEventId, EventData, NftCancelListingData, NftTransferToData,
-        ProcessedEventHandler,
+        EthEvent, EthEventId, EventData, NftCancelListingData, NftEndBatchListingData,
+        NftTransferToData, ProcessedEventHandler,
     },
     CallDecoder, InnerCallValidator, Proof,
 };
@@ -48,12 +48,15 @@ use sp_std::prelude::*;
 pub mod nft_data;
 use crate::nft_data::*;
 
+pub mod batch_nft;
+use crate::batch_nft::*;
+
 pub mod default_weights;
 pub use default_weights::WeightInfo;
 
 const SINGLE_NFT_ID_CONTEXT: &'static [u8; 1] = b"A";
-#[allow(dead_code)]
 const BATCH_NFT_ID_CONTEXT: &'static [u8; 1] = b"B";
+const BATCH_ID_CONTEXT: &'static [u8; 1] = b"G";
 pub const SIGNED_MINT_SINGLE_NFT_CONTEXT: &'static [u8] =
     b"authorization for mint single nft operation";
 pub const SIGNED_LIST_NFT_OPEN_FOR_SALE_CONTEXT: &'static [u8] =
@@ -62,8 +65,10 @@ pub const SIGNED_TRANSFER_FIAT_NFT_CONTEXT: &'static [u8] =
     b"authorization for transfer fiat nft operation";
 pub const SIGNED_CANCEL_LIST_FIAT_NFT_CONTEXT: &'static [u8] =
     b"authorization for cancel list fiat nft for sale operation";
+pub const SIGNED_MINT_BATCH_NFT_CONTEXT: &'static [u8] =
+    b"authorization for mint batch nft operation";
 
-const MAX_NUMBER_OF_ROYALTIES: u32 = 50;
+const MAX_NUMBER_OF_ROYALTIES: u32 = 5;
 
 pub trait Config: system::Config + avn::Config {
     /// The overarching event type.
@@ -105,9 +110,12 @@ decl_event!(
         OpId = u64,
     {
         SingleNftMinted(NftId, AccountId, MinterTier1Address),
-        BatchNftMinted(NftId, NftBatchId, AccountId),
-        NewBatchSetup(NftBatchId, MinterTier1Address, TotalSupply),
+        ///nft_id, batch_id, provenance, owner
+        BatchNftMinted(NftId, NftBatchId, MinterTier1Address, AccountId),
+        /// nft_id, sale_type
         NftOpenForSale(NftId, NftSaleType),
+        /// batch_id, sale_type
+        BatchOpenForSale(NftBatchId, NftSaleType),
         /// EthNftTransfer(NftId, NewOwnerAccountId, NftSaleType, OpId, EthEventId),
         EthNftTransfer(NftId, AccountId, NftSaleType, OpId, EthEventId),
         /// FiatNftTransfer(NftId, SenderAccountId, NewOwnerAccountId, NftSaleType, NftNonce)
@@ -117,6 +125,10 @@ decl_event!(
         /// CancelSingleFiatNftListing(NftId, NftSaleType, NftNonce)
         CancelSingleFiatNftListing(NftId, NftSaleType, OpId),
         CallDispatched(Relayer, Hash),
+        ///batch_id, total_supply, batch_creator, provenance
+        BatchCreated(NftBatchId, TotalSupply, AccountId, MinterTier1Address),
+        /// batch_id, market
+        BatchSaleEnded(NftBatchId, NftSaleType),
     }
 );
 
@@ -153,7 +165,22 @@ decl_error! {
         UnauthorizedSignedTransferFiatNftTransaction,
         UnauthorizedSignedCancelListFiatNftTransaction,
         TransactionNotSupported,
-        TransferToIsMandatory
+        TransferToIsMandatory,
+        UnauthorizedSignedCreateBatchTransaction,
+        BatchAlreadyExists,
+        TotalSupplyZero,
+        UnauthorizedSignedMintBatchNftTransaction,
+        BatchIdIsMandatory,
+        BatchDoesNotExist,
+        SenderIsNotBatchCreator,
+        TotalSupplyExceeded,
+        UnauthorizedSignedListBatchForSaleTransaction,
+        BatchAlreadyListed,
+        NoNftsToSell,
+        BatchNotListed,
+        UnauthorizedSignedEndBatchSaleTransaction,
+        BatchNotListedForFiatSale,
+        BatchNotListedForEthereumSale,
     }
 }
 
@@ -162,7 +189,7 @@ decl_storage! {
         /// A mapping between NFT Id and data
         pub Nfts get(fn nfts): map hasher(blake2_128_concat) NftId => Nft<T::AccountId>;
         /// A mapping between NFT info Id and info data
-        pub NftInfos get(fn nft_infos): map hasher(blake2_128_concat) NftInfoId => NftInfo;
+        pub NftInfos get(fn nft_infos): map hasher(blake2_128_concat) NftInfoId => NftInfo<T::AccountId>;
         /// A mapping between the external batch id and its nft Ids
         pub NftBatches get(fn nft_batches): map hasher(blake2_128_concat) NftBatchId => Vec<NftId>;
         /// A mapping between the external batch id and its corresponding NtfInfoId
@@ -175,6 +202,13 @@ decl_storage! {
         pub NextSingleNftUniqueId get(fn next_unique_id): U256;
         /// A mapping that keeps all the nfts that are open to sale in a specific market
         pub NftOpenForSale get(fn get_nft_open_for_sale_on): map hasher(blake2_128_concat) NftId => NftSaleType;
+        /// A mapping between the external batch id and its nft Ids
+        pub OwnedNfts get(fn get_owned_nfts): map hasher(blake2_128_concat) T::AccountId => Vec<NftId>;
+        StorageVersion: Releases;
+        /// An account nonce that represents the number of proxy transactions from this account
+        pub BatchNonces get(fn batch_nonce): map hasher(blake2_128_concat) T::AccountId => u64;
+        /// A mapping that keeps all the batches that are open to sale in a specific market
+        pub BatchOpenForSale get(fn get_batch_sale_market): map hasher(blake2_128_concat) NftBatchId => NftSaleType;
     }
 }
 
@@ -205,12 +239,12 @@ decl_module! {
             Self::validate_mint_single_nft_request(&unique_external_ref, &royalties, t1_authority)?;
 
             // We trust the input for the value of t1_authority
-            let nft_id = Self::generate_nft_id_single_mint(&t1_authority, Self::get_nft_unique_id_and_advance());
+            let nft_id = Self::generate_nft_id_single_mint(&t1_authority, Self::get_unique_id_and_advance());
             ensure!(Nfts::<T>::contains_key(&nft_id) == false, Error::<T>::NftAlreadyExists);
 
             // No errors allowed after this point because `get_info_id_and_advance` mutates storage
             let info_id = Self::get_info_id_and_advance();
-            let (nft, info) = Self::insert_nft_into_chain(
+            let (nft, info) = Self::insert_single_nft_into_chain(
                 info_id, royalties, t1_authority, nft_id, unique_external_ref, sender
             );
 
@@ -249,12 +283,12 @@ decl_module! {
             );
 
             // We trust the input for the value of t1_authority
-            let nft_id = Self::generate_nft_id_single_mint(&t1_authority, Self::get_nft_unique_id_and_advance());
+            let nft_id = Self::generate_nft_id_single_mint(&t1_authority, Self::get_unique_id_and_advance());
             ensure!(Nfts::<T>::contains_key(&nft_id) == false, Error::<T>::NftAlreadyExists);
 
             // No errors allowed after this point because `get_info_id_and_advance` mutates storage
             let info_id = Self::get_info_id_and_advance();
-            let (nft, info) = Self::insert_nft_into_chain(
+            let (nft, info) = Self::insert_single_nft_into_chain(
                 info_id, royalties, t1_authority, nft_id, unique_external_ref, proof.signer
             );
 
@@ -349,7 +383,7 @@ decl_module! {
                 .expect("32 bytes will always decode into an AccountId");
             let market = Self::get_nft_open_for_sale_on(nft_id);
 
-            Self::transfer_nft(&nft_id, new_nft_owner.clone())?;
+            Self::transfer_nft(&nft_id, &nft.owner, &new_nft_owner.clone())?;
             Self::deposit_event(RawEvent::FiatNftTransfer(nft_id, sender, new_nft_owner, market, nft.nonce));
 
             Ok(())
@@ -418,6 +452,142 @@ decl_module! {
 
             return Self::get_dispatch_result_with_post_info(call);
         }
+
+        /// Creates a new batch
+        #[weight = T::WeightInfo::proxy_signed_create_batch(MAX_NUMBER_OF_ROYALTIES)]
+        fn signed_create_batch(origin,
+            proof: Proof<T::Signature, T::AccountId>,
+            total_supply: u64,
+            royalties: Vec<Royalty>,
+            t1_authority: H160) -> DispatchResult
+        {
+            let sender = ensure_signed(origin)?;
+            ensure!(sender == proof.signer, Error::<T>::SenderIsNotSigner);
+            ensure!(t1_authority.is_zero() == false, Error::<T>::T1AuthorityIsMandatory);
+            ensure!(total_supply > 0u64, Error::<T>::TotalSupplyZero);
+
+            Self::validate_royalties(&royalties)?;
+
+            let sender_nonce = Self::batch_nonce(&sender);
+            let signed_payload = encode_create_batch_params::<T>(&proof, &royalties, &t1_authority, &total_supply, &sender_nonce);
+            ensure!(
+                Self::verify_signature(&proof, &signed_payload.as_slice()).is_ok(),
+                Error::<T>::UnauthorizedSignedCreateBatchTransaction
+            );
+
+            let batch_id = generate_batch_id::<T>(Self::get_unique_id_and_advance());
+            ensure!(BatchInfoId::contains_key(&batch_id) == false, Error::<T>::BatchAlreadyExists);
+
+            // No errors allowed after this point because `get_info_id_and_advance` mutates storage
+            let info_id = Self::get_info_id_and_advance();
+            create_batch::<T>(info_id, batch_id, royalties, total_supply, t1_authority, sender.clone());
+
+            <BatchNonces<T>>::mutate(&sender, |n| *n += 1);
+
+            Self::deposit_event(RawEvent::BatchCreated(batch_id, total_supply, sender, t1_authority));
+
+            Ok(())
+        }
+
+        /// Mints an nft that belongs to a batch
+        #[weight = T::WeightInfo::proxy_signed_mint_batch_nft()]
+        fn signed_mint_batch_nft(origin,
+            proof: Proof<T::Signature, T::AccountId>,
+            batch_id: NftBatchId,
+            index: u64,
+            owner: T::AccountId,
+            unique_external_ref: Vec<u8>) -> DispatchResult
+        {
+            let sender = ensure_signed(origin)?;
+            ensure!(sender == proof.signer, Error::<T>::SenderIsNotSigner);
+
+            let nft_info = validate_mint_batch_nft_request::<T>(batch_id, &unique_external_ref)?;
+            ensure!(<BatchOpenForSale>::get(&batch_id) == NftSaleType::Fiat, Error::<T>::BatchNotListedForFiatSale);
+            ensure!(nft_info.creator == Some(sender), Error::<T>::SenderIsNotBatchCreator);
+
+            let signed_payload = encode_mint_batch_nft_params::<T>(&proof, &batch_id, &index, &unique_external_ref, &owner);
+            ensure!(
+                Self::verify_signature(&proof, &signed_payload.as_slice()).is_ok(),
+                Error::<T>::UnauthorizedSignedMintBatchNftTransaction
+            );
+
+            mint_batch_nft::<T>(batch_id, owner, index, &unique_external_ref)?;
+
+            Ok(())
+        }
+
+        #[weight = T::WeightInfo::proxy_signed_list_batch_for_sale()]
+        fn signed_list_batch_for_sale(origin,
+            proof: Proof<T::Signature, T::AccountId>,
+            batch_id: NftBatchId,
+            market: NftSaleType,
+        ) -> DispatchResult
+        {
+            let sender = ensure_signed(origin)?;
+            ensure!(sender == proof.signer, Error::<T>::SenderIsNotSigner);
+            ensure!(batch_id.is_zero() == false, Error::<T>::BatchIdIsMandatory);
+            ensure!(BatchInfoId::contains_key(&batch_id), Error::<T>::BatchDoesNotExist);
+            ensure!(market != NftSaleType::Unknown, Error::<T>::UnsupportedMarket);
+
+            let sender_nonce = Self::batch_nonce(&sender);
+            let nft_info = get_nft_info_for_batch::<T>(&batch_id)?;
+            //Only the batch creator can allow mint operations.
+            ensure!(nft_info.creator == Some(sender.clone()), Error::<T>::SenderIsNotBatchCreator);
+            ensure!((NftBatches::get(&batch_id).len() as u64) < nft_info.total_supply, Error::<T>::NoNftsToSell);
+            ensure!(<BatchOpenForSale>::contains_key(&batch_id) == false, Error::<T>::BatchAlreadyListed);
+
+            let signed_payload = encode_list_batch_for_sale_params::<T>(&proof, &batch_id, &market, &sender_nonce);
+            ensure!(
+                Self::verify_signature(&proof, &signed_payload.as_slice()).is_ok(),
+                Error::<T>::UnauthorizedSignedListBatchForSaleTransaction
+            );
+
+            <BatchOpenForSale>::insert(batch_id, market);
+            <BatchNonces<T>>::mutate(&sender, |n| *n += 1);
+
+            Self::deposit_event(RawEvent::BatchOpenForSale(batch_id, market));
+
+            Ok(())
+        }
+
+        #[weight = T::WeightInfo::proxy_signed_end_batch_sale()]
+        fn signed_end_batch_sale(origin,
+            proof: Proof<T::Signature, T::AccountId>,
+            batch_id: NftBatchId,
+        ) -> DispatchResult {
+            let sender = ensure_signed(origin)?;
+            ensure!(sender == proof.signer, Error::<T>::SenderIsNotSigner);
+            validate_end_batch_listing_request::<T>(&batch_id)?;
+            ensure!(<BatchOpenForSale>::get(&batch_id) == NftSaleType::Fiat, Error::<T>::BatchNotListedForFiatSale);
+
+            let sender_nonce = Self::batch_nonce(&sender);
+            let nft_info = get_nft_info_for_batch::<T>(&batch_id)?;
+            //Only the batch creator can end the listing
+            ensure!(nft_info.creator == Some(sender.clone()), Error::<T>::SenderIsNotBatchCreator);
+
+            let signed_payload = encode_end_batch_sale_params::<T>(&proof, &batch_id, &sender_nonce);
+            ensure!(
+                Self::verify_signature(&proof, &signed_payload.as_slice()).is_ok(),
+                Error::<T>::UnauthorizedSignedEndBatchSaleTransaction
+            );
+
+            let market = <BatchOpenForSale>::get(batch_id);
+            end_batch_listing::<T>(&batch_id, market)?;
+            <BatchNonces<T>>::mutate(&sender, |n| *n += 1);
+
+            Ok(())
+        }
+
+        // Note: this "special" function will run during every runtime upgrade. Any complicated migration logic should be done in a
+        // separate function so it can be tested properly.
+        fn on_runtime_upgrade() -> Weight {
+            if StorageVersion::get() == Releases::V2_0_0 {
+                StorageVersion::put(Releases::V3_0_0);
+                return migrations::migrate_to_batch_nft::<T>()
+            }
+
+            return 0;
+        }
     }
 }
 
@@ -428,6 +598,18 @@ impl<T: Config> Module<T> {
         t1_authority: H160,
     ) -> DispatchResult {
         ensure!(
+            t1_authority.is_zero() == false,
+            Error::<T>::T1AuthorityIsMandatory
+        );
+
+        Self::validate_external_ref(unique_external_ref)?;
+        Self::validate_royalties(royalties)?;
+
+        Ok(())
+    }
+
+    fn validate_external_ref(unique_external_ref: &Vec<u8>) -> DispatchResult {
+        ensure!(
             unique_external_ref.len() > 0,
             Error::<T>::ExternalRefIsMandatory
         );
@@ -435,12 +617,11 @@ impl<T: Config> Module<T> {
             Self::is_external_ref_used(&unique_external_ref) == false,
             Error::<T>::ExternalRefIsAlreadyInUse
         );
-        ensure!(
-            t1_authority.is_zero() == false,
-            Error::<T>::T1AuthorityIsMandatory
-        );
 
-        // TODO: Review this comment https://github.com/Aventus-Network-Services/avn-tier2/pull/763#discussion_r617360380
+        Ok(())
+    }
+
+    fn validate_royalties(royalties: &Vec<Royalty>) -> DispatchResult {
         let invalid_rates_found = royalties.iter().any(|r| !r.rate.is_valid());
         ensure!(
             invalid_rates_found == false,
@@ -451,6 +632,7 @@ impl<T: Config> Module<T> {
             .iter()
             .map(|r| r.rate.parts_per_million)
             .sum::<u32>();
+
         ensure!(
             rate_total <= 1_000_000,
             Error::<T>::TotalRoyaltyRateIsNotValid
@@ -509,54 +691,27 @@ impl<T: Config> Module<T> {
         return id;
     }
 
-    #[allow(dead_code)]
-    fn get_nft_info_for_batch(batch_id: &NftBatchId) -> Result<Option<NftInfo>, Error<T>> {
-        if BatchInfoId::contains_key(&batch_id) == false {
-            return Ok(None);
-        }
-
-        let existing_nft_info_id = BatchInfoId::get(&batch_id);
-        ensure!(
-            NftInfos::contains_key(&existing_nft_info_id),
-            Error::<T>::NftInfoMissing
-        );
-
-        return Ok(Some(NftInfos::get(existing_nft_info_id)));
-    }
-
-    #[allow(dead_code)]
-    fn nft_info_data_match(
-        info: &NftInfo,
-        royalties: &Vec<Royalty>,
-        minter: &H160,
-        total_supply: &u64,
-    ) -> bool {
-        return (royalties, minter, total_supply).encode()
-            == (info.royalties.clone(), info.t1_authority, info.total_supply).encode();
-    }
-
-    fn get_nft_unique_id_and_advance() -> NftUniqueId {
+    fn get_unique_id_and_advance() -> NftUniqueId {
         let id = Self::next_unique_id();
         <NextSingleNftUniqueId>::mutate(|n| *n += U256::from(1));
 
         return id;
     }
 
-    fn insert_nft_into_chain(
+    fn insert_single_nft_into_chain(
         info_id: NftInfoId,
         royalties: Vec<Royalty>,
         t1_authority: H160,
         nft_id: NftId,
         unique_external_ref: Vec<u8>,
         owner: T::AccountId,
-    ) -> (Nft<T::AccountId>, NftInfo) {
+    ) -> (Nft<T::AccountId>, NftInfo<T::AccountId>) {
         let info = NftInfo::new(info_id, royalties, t1_authority);
-        let nft = Nft::new(nft_id, info_id, unique_external_ref, owner);
+        let nft = Nft::new(nft_id, info_id, unique_external_ref, owner.clone());
 
-        <NftInfos>::insert(info.info_id, &info);
-        <Nfts<T>>::insert(nft.nft_id, &nft);
+        <NftInfos<T>>::insert(info.info_id, &info);
 
-        <UsedExternalReferences>::insert(&nft.unique_external_ref, true);
+        Self::add_nft_and_update_owner(&owner, &nft);
         return (nft, info);
     }
 
@@ -568,8 +723,6 @@ impl<T: Config> Module<T> {
     }
 
     /// The NftId for a single mint is calculated by this formula: uint256(keccak256(“A”, contract_address, unique_id))
-    // TODOs: Confirm that the data are packed the same as encodePacked.
-    // TODOs: Confirm that which data needs to be in BE format.
     fn generate_nft_id_single_mint(contract: &H160, unique_id: NftUniqueId) -> U256 {
         let mut data_to_hash = SINGLE_NFT_ID_CONTEXT.to_vec();
 
@@ -578,26 +731,6 @@ impl<T: Config> Module<T> {
         let mut unique_id_be = [0u8; 32];
         unique_id.to_big_endian(&mut unique_id_be);
         data_to_hash.append(&mut unique_id_be.to_vec());
-
-        let hash = keccak_256(&data_to_hash);
-
-        return U256::from(hash);
-    }
-
-    /// The NftId for a Batch Sale is calculated by this formula: uint256(keccak256(“B”, contract_address, batchId, unique_id))
-    // TODOs: Confirm that the data are packed the same as encodePacked.
-    // TODOs: Confirm that which data needs to be in BE format.
-    #[allow(dead_code)]
-    fn generate_nft_id_batch_sale(contract: &H160, batch_id: &U256, sales_index: &u64) -> U256 {
-        let mut data_to_hash = BATCH_NFT_ID_CONTEXT.to_vec();
-
-        data_to_hash.append(&mut contract[..].to_vec());
-
-        let mut batch_id_be = [0u8; 32];
-        batch_id.to_big_endian(&mut batch_id_be);
-        data_to_hash.append(&mut batch_id_be.to_vec());
-
-        data_to_hash.append(&mut sales_index.to_be_bytes().to_vec());
 
         let hash = keccak_256(&data_to_hash);
 
@@ -619,10 +752,10 @@ impl<T: Config> Module<T> {
             market == NftSaleType::Ethereum,
             Error::<T>::NftNotListedForEthereumSale
         );
-        ensure!(
-            data.op_id == Self::nfts(data.nft_id).nonce,
-            Error::<T>::NftNonceMismatch
-        );
+
+        let nft = Self::nfts(data.nft_id);
+
+        ensure!(data.op_id == nft.nonce, Error::<T>::NftNonceMismatch);
         ensure!(
             T::ProcessedEventsChecker::check_event(event_id),
             Error::<T>::NoTier1EventForNftOperation
@@ -630,7 +763,7 @@ impl<T: Config> Module<T> {
 
         let new_nft_owner = T::AccountId::decode(&mut data.t2_transfer_to_public_key.as_bytes())
             .expect("32 bytes will always decode into an AccountId");
-        Self::transfer_nft(&data.nft_id, new_nft_owner.clone())?;
+        Self::transfer_nft(&data.nft_id, &nft.owner, &new_nft_owner)?;
         Self::deposit_event(RawEvent::EthNftTransfer(
             data.nft_id,
             new_nft_owner,
@@ -642,14 +775,56 @@ impl<T: Config> Module<T> {
         Ok(())
     }
 
-    fn transfer_nft(nft_id: &NftId, new_nft_owner: T::AccountId) -> DispatchResult {
+    fn transfer_nft(
+        nft_id: &NftId,
+        old_nft_owner: &T::AccountId,
+        new_nft_owner: &T::AccountId,
+    ) -> DispatchResult {
         Self::remove_listing_from_open_for_sale(nft_id)?;
+        Self::update_owner_for_transfer(nft_id, old_nft_owner, new_nft_owner);
+        Ok(())
+    }
+
+    // See https://github.com/Aventus-Network-Services/avn-tier2/pull/991#discussion_r832470480 for details of why we have this
+    // as a separate function
+    fn update_owner_for_transfer(
+        nft_id: &NftId,
+        old_nft_owner: &T::AccountId,
+        new_nft_owner: &T::AccountId,
+    ) {
         <Nfts<T>>::mutate(nft_id, |nft| {
             nft.owner = new_nft_owner.clone();
             nft.nonce += 1u64;
         });
 
-        Ok(())
+        <OwnedNfts<T>>::mutate(old_nft_owner, |owner_nfts| {
+            if let Some(pos) = owner_nfts.iter().position(|n| n == nft_id) {
+                owner_nfts.swap_remove(pos);
+            }
+        });
+
+        if <OwnedNfts<T>>::contains_key(new_nft_owner) {
+            <OwnedNfts<T>>::mutate(new_nft_owner, |owner_nfts| {
+                owner_nfts.push(*nft_id);
+            });
+        } else {
+            <OwnedNfts<T>>::insert(new_nft_owner, vec![*nft_id]);
+        }
+    }
+
+    // See https://github.com/Aventus-Network-Services/avn-tier2/pull/991#discussion_r832470480 for details of why we have this
+    // as a separate function
+    fn add_nft_and_update_owner(owner: &T::AccountId, nft: &Nft<T::AccountId>) {
+        <Nfts<T>>::insert(nft.nft_id, &nft);
+        <UsedExternalReferences>::insert(&nft.unique_external_ref, true);
+
+        if <OwnedNfts<T>>::contains_key(owner) {
+            <OwnedNfts<T>>::mutate(owner, |owner_nfts| {
+                owner_nfts.push(nft.nft_id);
+            });
+        } else {
+            <OwnedNfts<T>>::insert(owner, vec![nft.nft_id]);
+        }
     }
 
     fn cancel_eth_nft_listing(
@@ -836,6 +1011,45 @@ impl<T: Config> Module<T> {
                     Self::encode_cancel_list_fiat_nft_params(proof, nft_id),
                 ))
             }
+            Call::signed_create_batch(proof, total_supply, royalties, t1_authority) => {
+                let sender_nonce = Self::batch_nonce(&proof.signer);
+                return Some((
+                    proof,
+                    encode_create_batch_params::<T>(
+                        proof,
+                        royalties,
+                        t1_authority,
+                        total_supply,
+                        &sender_nonce,
+                    ),
+                ));
+            }
+            Call::signed_mint_batch_nft(proof, batch_id, index, owner, unique_external_ref) => {
+                return Some((
+                    proof,
+                    encode_mint_batch_nft_params::<T>(
+                        proof,
+                        batch_id,
+                        index,
+                        unique_external_ref,
+                        owner,
+                    ),
+                ))
+            }
+            Call::signed_list_batch_for_sale(proof, batch_id, market) => {
+                let sender_nonce = Self::batch_nonce(&proof.signer);
+                return Some((
+                    proof,
+                    encode_list_batch_for_sale_params::<T>(proof, batch_id, market, &sender_nonce),
+                ));
+            }
+            Call::signed_end_batch_sale(proof, batch_id) => {
+                let sender_nonce = Self::batch_nonce(&proof.signer);
+                return Some((
+                    proof,
+                    encode_end_batch_sale_params::<T>(proof, batch_id, &sender_nonce),
+                ));
+            }
             _ => return None,
         }
     }
@@ -847,6 +1061,12 @@ impl<T: Config + ethereum_events::Config> ProcessedEventHandler for Module<T> {
             EventData::LogNftTransferTo(data) => Self::transfer_eth_nft(&event.event_id, data),
             EventData::LogNftCancelListing(data) => {
                 Self::cancel_eth_nft_listing(&event.event_id, data)
+            }
+            EventData::LogNftMinted(data) => {
+                process_mint_batch_nft_event::<T>(&event.event_id, data)
+            }
+            EventData::LogNftEndBatchListing(data) => {
+                process_end_batch_listing_event::<T>(&event.event_id, data)
             }
             _ => Ok(()),
         };
@@ -881,6 +1101,10 @@ impl<T: Config> CallDecoder for Module<T> {
                 return Ok(proof.clone())
             }
             Call::signed_cancel_list_fiat_nft(proof, _nft_id) => return Ok(proof.clone()),
+            Call::signed_create_batch(proof, _, _, _) => return Ok(proof.clone()),
+            Call::signed_mint_batch_nft(proof, _, _, _, _) => return Ok(proof.clone()),
+            Call::signed_list_batch_for_sale(proof, _, _) => return Ok(proof.clone()),
+            Call::signed_end_batch_sale(proof, _) => return Ok(proof.clone()),
             _ => return Err(Error::TransactionNotSupported),
         }
     }
@@ -895,6 +1119,57 @@ impl<T: Config> InnerCallValidator for Module<T> {
         }
 
         return false;
+    }
+}
+
+// A value placed in storage that represents the current version of the Staking storage. This value
+// is used by the `on_runtime_upgrade` logic to determine whether we run storage migration logic.
+#[derive(Encode, Decode, Clone, Copy, PartialEq, Eq)]
+enum Releases {
+    Unknown,
+    V2_0_0,
+    V3_0_0,
+}
+
+impl Default for Releases {
+    fn default() -> Self {
+        Releases::Unknown
+    }
+}
+
+pub mod migrations {
+    use super::*;
+
+    #[derive(Decode)]
+    struct OldNftInfo {
+        pub info_id: NftInfoId,
+        pub batch_id: Option<NftBatchId>,
+        pub royalties: Vec<Royalty>,
+        pub total_supply: u64,
+        pub t1_authority: H160,
+    }
+
+    impl OldNftInfo {
+        fn upgraded<T: Config>(self) -> NftInfo<T::AccountId> {
+            NftInfo {
+                info_id: self.info_id,
+                batch_id: self.batch_id,
+                royalties: self.royalties,
+                total_supply: self.total_supply,
+                t1_authority: self.t1_authority,
+                creator: None,
+            }
+        }
+    }
+
+    pub fn migrate_to_batch_nft<T: Config>() -> frame_support::weights::Weight {
+        frame_support::debug::RuntimeLogger::init();
+        frame_support::debug::info!("ℹ️  Nft manager pallet data migration invoked");
+
+        NftInfos::<T>::translate::<OldNftInfo, _>(|_, p| Some(p.upgraded::<T>()));
+
+        frame_support::debug::info!("ℹ️  Migrated NftInfo data successfully");
+        return T::BlockWeights::get().max_block;
     }
 }
 
@@ -937,5 +1212,9 @@ pub mod transfer_to_tests;
 #[cfg(test)]
 #[path = "tests/cancel_single_nft_listing_tests.rs"]
 pub mod cancel_single_nft_listing_tests;
+
+#[cfg(test)]
+#[path = "tests/batch_nft_tests.rs"]
+pub mod batch_nft_tests;
 
 mod benchmarking;

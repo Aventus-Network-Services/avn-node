@@ -25,6 +25,7 @@ use frame_system::RawOrigin;
 use hex_literal::hex;
 use mock::Event;
 use sp_core::sr25519::Pair;
+use crate::mock::AccountId;
 
 fn build_proof(
     signer: &AccountId,
@@ -93,7 +94,7 @@ impl Default for Context {
 impl Context {
     fn setup(&self) {
         <Nfts<TestRuntime>>::remove(&self.nft_id);
-        <NftInfos>::remove(&self.nft_id);
+        <NftInfos<TestRuntime>>::remove(&self.nft_id);
         <UsedExternalReferences>::remove(&self.unique_external_ref);
     }
 
@@ -163,6 +164,12 @@ mod proxy_signed_mint_single_nft {
                 assert_ok!(NftManager::proxy(Origin::signed(context.relayer), call));
 
                 assert_eq!(true, <Nfts<TestRuntime>>::contains_key(&context.nft_id));
+
+                assert_eq!(
+                    true,
+                    nft_is_owned(&context.nft_owner_account, &context.nft_id)
+                );
+
                 assert_eq!(
                     Nft::new(
                         context.nft_id,
@@ -183,17 +190,18 @@ mod proxy_signed_mint_single_nft {
                 context.setup();
                 let call = context.create_signed_mint_single_nft_call();
 
-                assert_eq!(false, <NftInfos>::contains_key(&context.info_id));
+                assert_eq!(false, <NftInfos<TestRuntime>>::contains_key(&context.info_id));
 
                 assert_ok!(NftManager::proxy(
                     Origin::signed(context.relayer),
                     call.clone()
                 ));
 
-                assert_eq!(true, <NftInfos>::contains_key(&context.info_id));
+                assert_eq!(true, <NftInfos<TestRuntime>>::contains_key(&context.info_id));
+
                 assert_eq!(
                     NftInfo::new(context.info_id, context.royalties, context.t1_authority),
-                    <NftInfos>::get(&context.info_id)
+                    <NftInfos<TestRuntime>>::get(&context.info_id)
                 );
             });
         }
@@ -243,6 +251,28 @@ mod proxy_signed_mint_single_nft {
                 ));
 
                 assert_eq!(true, context.mint_single_nft_event_emitted());
+            });
+        }
+
+        #[test]
+        fn owned_nft_list_is_updated_test() {
+            let mut ext = ExtBuilder::build_default().as_externality();
+            ext.execute_with(|| {
+                let context = Context::default();
+                context.setup();
+                let call = context.create_signed_mint_single_nft_call();
+
+                assert_eq!(false, context.call_dispatched_event_emitted(&call));
+
+                assert_ok!(NftManager::proxy(
+                    Origin::signed(context.relayer),
+                    call.clone()
+                ));
+
+                assert_eq!(
+                    true,
+                    nft_is_owned(&context.nft_owner_account, &context.nft_id)
+                );
             });
         }
 
@@ -430,7 +460,7 @@ mod proxy_signed_mint_single_nft {
                 );
 
                 assert_eq!(false, <Nfts<TestRuntime>>::contains_key(&context.nft_id));
-                assert_eq!(false, <NftInfos>::contains_key(&context.info_id));
+                assert_eq!(false, <NftInfos<TestRuntime>>::contains_key(&context.info_id));
                 assert_eq!(
                     false,
                     <UsedExternalReferences>::contains_key(&context.unique_external_ref)
@@ -469,7 +499,7 @@ mod proxy_signed_mint_single_nft {
                 );
 
                 assert_eq!(false, <Nfts<TestRuntime>>::contains_key(&context.nft_id));
-                assert_eq!(false, <NftInfos>::contains_key(&context.info_id));
+                assert_eq!(false, <NftInfos<TestRuntime>>::contains_key(&context.info_id));
                 assert_eq!(
                     false,
                     <UsedExternalReferences>::contains_key(&context.unique_external_ref)
@@ -508,7 +538,7 @@ mod proxy_signed_mint_single_nft {
                 );
 
                 assert_eq!(false, <Nfts<TestRuntime>>::contains_key(&context.nft_id));
-                assert_eq!(false, <NftInfos>::contains_key(&context.info_id));
+                assert_eq!(false, <NftInfos<TestRuntime>>::contains_key(&context.info_id));
                 assert_eq!(
                     false,
                     <UsedExternalReferences>::contains_key(&context.unique_external_ref)
@@ -550,7 +580,7 @@ mod proxy_signed_mint_single_nft {
                 );
 
                 assert_eq!(false, <Nfts<TestRuntime>>::contains_key(&context.nft_id));
-                assert_eq!(false, <NftInfos>::contains_key(&context.info_id));
+                assert_eq!(false, <NftInfos<TestRuntime>>::contains_key(&context.info_id));
                 assert_eq!(
                     false,
                     <UsedExternalReferences>::contains_key(&context.unique_external_ref)
@@ -596,7 +626,7 @@ mod proxy_signed_mint_single_nft {
                 );
 
                 assert_eq!(false, <Nfts<TestRuntime>>::contains_key(&context.nft_id));
-                assert_eq!(false, <NftInfos>::contains_key(&context.info_id));
+                assert_eq!(false, <NftInfos<TestRuntime>>::contains_key(&context.info_id));
                 assert_eq!(
                     false,
                     <UsedExternalReferences>::contains_key(&context.unique_external_ref)
@@ -637,7 +667,7 @@ mod proxy_signed_mint_single_nft {
                 );
 
                 assert_eq!(false, <Nfts<TestRuntime>>::contains_key(&context.nft_id));
-                assert_eq!(false, <NftInfos>::contains_key(&context.info_id));
+                assert_eq!(false, <NftInfos<TestRuntime>>::contains_key(&context.info_id));
                 assert_eq!(
                     false,
                     <UsedExternalReferences>::contains_key(&context.unique_external_ref)
@@ -693,7 +723,7 @@ mod signed_mint_single_nft {
                 context.setup();
                 let proof = context.create_signed_mint_single_nft_proof();
 
-                assert_eq!(false, <NftInfos>::contains_key(&context.info_id));
+                assert_eq!(false, <NftInfos<TestRuntime>>::contains_key(&context.info_id));
 
                 assert_ok!(NftManager::signed_mint_single_nft(
                     Origin::signed(context.nft_owner_account),
@@ -703,10 +733,10 @@ mod signed_mint_single_nft {
                     context.t1_authority
                 ));
 
-                assert_eq!(true, <NftInfos>::contains_key(&context.info_id));
+                assert_eq!(true, <NftInfos<TestRuntime>>::contains_key(&context.info_id));
                 assert_eq!(
                     NftInfo::new(context.info_id, context.royalties, context.t1_authority),
-                    <NftInfos>::get(&context.info_id)
+                    <NftInfos<TestRuntime>>::get(&context.info_id)
                 );
             });
         }
@@ -739,6 +769,34 @@ mod signed_mint_single_nft {
                 assert_eq!(
                     true,
                     <UsedExternalReferences>::get(context.unique_external_ref)
+                );
+            });
+        }
+
+        #[test]
+        fn owned_nft_list_is_updated_test() {
+            let mut ext = ExtBuilder::build_default().as_externality();
+            ext.execute_with(|| {
+                let context = Context::default();
+                context.setup();
+                let proof = context.create_signed_mint_single_nft_proof();
+
+                assert_eq!(
+                    false,
+                    <UsedExternalReferences>::contains_key(&context.unique_external_ref)
+                );
+
+                assert_ok!(NftManager::signed_mint_single_nft(
+                    Origin::signed(context.nft_owner_account),
+                    proof,
+                    context.unique_external_ref.clone(),
+                    context.royalties.clone(),
+                    context.t1_authority
+                ));
+
+                assert_eq!(
+                    true,
+                    nft_is_owned(&context.nft_owner_account, &context.nft_id)
                 );
             });
         }
@@ -960,7 +1018,7 @@ mod signed_mint_single_nft {
                 );
 
                 assert_eq!(false, <Nfts<TestRuntime>>::contains_key(&context.nft_id));
-                assert_eq!(false, <NftInfos>::contains_key(&context.info_id));
+                assert_eq!(false, <NftInfos<TestRuntime>>::contains_key(&context.info_id));
                 assert_eq!(
                     false,
                     <UsedExternalReferences>::contains_key(&context.unique_external_ref)
@@ -997,7 +1055,7 @@ mod signed_mint_single_nft {
                 );
 
                 assert_eq!(false, <Nfts<TestRuntime>>::contains_key(&context.nft_id));
-                assert_eq!(false, <NftInfos>::contains_key(&context.info_id));
+                assert_eq!(false, <NftInfos<TestRuntime>>::contains_key(&context.info_id));
                 assert_eq!(
                     false,
                     <UsedExternalReferences>::contains_key(&context.unique_external_ref)
@@ -1034,7 +1092,7 @@ mod signed_mint_single_nft {
                 );
 
                 assert_eq!(false, <Nfts<TestRuntime>>::contains_key(&context.nft_id));
-                assert_eq!(false, <NftInfos>::contains_key(&context.info_id));
+                assert_eq!(false, <NftInfos<TestRuntime>>::contains_key(&context.info_id));
                 assert_eq!(
                     false,
                     <UsedExternalReferences>::contains_key(&context.unique_external_ref)
@@ -1074,7 +1132,7 @@ mod signed_mint_single_nft {
                 );
 
                 assert_eq!(false, <Nfts<TestRuntime>>::contains_key(&context.nft_id));
-                assert_eq!(false, <NftInfos>::contains_key(&context.info_id));
+                assert_eq!(false, <NftInfos<TestRuntime>>::contains_key(&context.info_id));
                 assert_eq!(
                     false,
                     <UsedExternalReferences>::contains_key(&context.unique_external_ref)
@@ -1118,7 +1176,7 @@ mod signed_mint_single_nft {
                 );
 
                 assert_eq!(false, <Nfts<TestRuntime>>::contains_key(&context.nft_id));
-                assert_eq!(false, <NftInfos>::contains_key(&context.info_id));
+                assert_eq!(false, <NftInfos<TestRuntime>>::contains_key(&context.info_id));
                 assert_eq!(
                     false,
                     <UsedExternalReferences>::contains_key(&context.unique_external_ref)
@@ -1157,7 +1215,7 @@ mod signed_mint_single_nft {
                 );
 
                 assert_eq!(false, <Nfts<TestRuntime>>::contains_key(&context.nft_id));
-                assert_eq!(false, <NftInfos>::contains_key(&context.info_id));
+                assert_eq!(false, <NftInfos<TestRuntime>>::contains_key(&context.info_id));
                 assert_eq!(
                     false,
                     <UsedExternalReferences>::contains_key(&context.unique_external_ref)

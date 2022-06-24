@@ -76,7 +76,7 @@ impl<AccountId: Member> Nft<AccountId> {
 }
 
 #[derive(Encode, Decode, Default, Clone, Debug, PartialEq)]
-pub struct NftInfo {
+pub struct NftInfo<AccountId: Member> {
     /// Unique identifier of this information
     pub info_id: NftInfoId,
     /// Batch Id defined by client
@@ -89,16 +89,19 @@ pub struct NftInfo {
     pub total_supply: u64,
     /// Minter's tier 1 address
     pub t1_authority: H160,
+    /// The address of the initial creator
+    pub creator: Option<AccountId>,
 }
 
-impl NftInfo {
+impl<AccountId: Member> NftInfo<AccountId> {
     pub fn new(info_id: NftInfoId, royalties: Vec<Royalty>, t1_authority: H160) -> Self {
-        return NftInfo {
+        return NftInfo::<AccountId> {
             info_id,
             batch_id: None,
             royalties,
             total_supply: 1u64,
             t1_authority,
+            creator: None,
         };
     }
 
@@ -108,13 +111,15 @@ impl NftInfo {
         royalties: Vec<Royalty>,
         t1_authority: H160,
         total_supply: u64,
+        creator: AccountId,
     ) -> Self {
-        return NftInfo {
+        return NftInfo::<AccountId> {
             info_id,
             batch_id: Some(batch_id),
             royalties,
             total_supply,
             t1_authority,
+            creator: Some(creator),
         };
     }
 }

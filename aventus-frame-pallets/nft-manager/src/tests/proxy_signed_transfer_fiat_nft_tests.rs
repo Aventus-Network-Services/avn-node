@@ -24,6 +24,7 @@ use frame_support::{assert_noop, assert_ok, error::BadOrigin};
 use frame_system::RawOrigin;
 use mock::Event;
 use sp_core::{sr25519::Pair, H256, U256};
+use crate::mock::AccountId;
 
 fn build_proof(
     signer: &AccountId,
@@ -84,6 +85,7 @@ impl Context {
             self.nft_owner_account,
         );
         <NftManager as Store>::Nfts::insert(self.nft_id, &nft);
+        <NftManager as Store>::OwnedNfts::insert(self.nft_owner_account, vec![self.nft_id]);
         <NftManager as Store>::NftOpenForSale::insert(&self.nft_id, NftSaleType::Fiat);
     }
 
@@ -170,11 +172,29 @@ mod proxy_signed_transfer_fiat_nft {
                     <Nfts<TestRuntime>>::get(&context.nft_id).owner
                 );
 
+                assert_eq!(
+                    true,
+                    nft_is_owned(&context.nft_owner_account, &context.nft_id)
+                );
+                assert_eq!(
+                    false,
+                    nft_is_owned(&context.new_nft_owner_account, &context.nft_id)
+                );
+
                 assert_ok!(NftManager::proxy(Origin::signed(context.relayer), call));
 
                 assert_eq!(
                     context.new_nft_owner_account,
                     <Nfts<TestRuntime>>::get(&context.nft_id).owner
+                );
+
+                assert_eq!(
+                    false,
+                    nft_is_owned(&context.nft_owner_account, &context.nft_id)
+                );
+                assert_eq!(
+                    true,
+                    nft_is_owned(&context.new_nft_owner_account, &context.nft_id)
                 );
             });
         }
@@ -524,6 +544,15 @@ mod signed_transfer_fiat_nft {
                     <Nfts<TestRuntime>>::get(&context.nft_id).owner
                 );
 
+                assert_eq!(
+                    true,
+                    nft_is_owned(&context.nft_owner_account, &context.nft_id)
+                );
+                assert_eq!(
+                    false,
+                    nft_is_owned(&context.new_nft_owner_account, &context.nft_id)
+                );
+
                 assert_ok!(NftManager::signed_transfer_fiat_nft(
                     Origin::signed(context.nft_owner_account),
                     proof,
@@ -534,6 +563,15 @@ mod signed_transfer_fiat_nft {
                 assert_eq!(
                     context.new_nft_owner_account,
                     <Nfts<TestRuntime>>::get(&context.nft_id).owner
+                );
+
+                assert_eq!(
+                    false,
+                    nft_is_owned(&context.nft_owner_account, &context.nft_id)
+                );
+                assert_eq!(
+                    true,
+                    nft_is_owned(&context.new_nft_owner_account, &context.nft_id)
                 );
             });
         }

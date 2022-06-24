@@ -15,6 +15,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
+use crate::mock::AccountId;
 use crate::mock::*;
 use crate::nft_data::ROYALTY_RATE_DENOMINATOR;
 use frame_support::{assert_noop, assert_ok};
@@ -91,21 +92,26 @@ mod mint_single_nft {
                 let context: Context = Default::default();
 
                 let expected_info_id: NftInfoId = NftManager::next_info_id();
+                let nft_id = context.generate_nft_id();
 
+                assert_eq!(false, <Nfts<TestRuntime>>::contains_key(&nft_id));
                 assert_eq!(
                     false,
-                    <Nfts<TestRuntime>>::contains_key(&context.generate_nft_id())
+                    <NftInfos<TestRuntime>>::contains_key(&expected_info_id)
                 );
-                assert_eq!(false, <NftInfos>::contains_key(&expected_info_id));
                 assert_eq!(false, context.event_emitted_with_single_nft_minted());
 
                 assert_ok!(context.call_mint_single_nft());
 
+                assert_eq!(true, <Nfts<TestRuntime>>::contains_key(&nft_id));
                 assert_eq!(
                     true,
-                    <Nfts<TestRuntime>>::contains_key(&context.generate_nft_id())
+                    <NftInfos<TestRuntime>>::contains_key(&expected_info_id)
                 );
-                assert_eq!(true, <NftInfos>::contains_key(&expected_info_id));
+                assert_eq!(
+                    true,
+                    nft_is_owned(&context.owner, &context.generate_nft_id())
+                );
                 assert_eq!(true, context.event_emitted_with_single_nft_minted());
             });
         }
@@ -128,7 +134,10 @@ mod mint_single_nft {
                     false,
                     <Nfts<TestRuntime>>::contains_key(&context.generate_nft_id())
                 );
-                assert_eq!(false, <NftInfos>::contains_key(&expected_info_id));
+                assert_eq!(
+                    false,
+                    <NftInfos<TestRuntime>>::contains_key(&expected_info_id)
+                );
                 assert_eq!(false, context.event_emitted_with_single_nft_minted());
 
                 assert_noop!(context.call_mint_single_nft(), BadOrigin);
@@ -136,7 +145,6 @@ mod mint_single_nft {
             });
         }
 
-        // TODO This test might not be relevant anymore if we don't want to use t1 contracts in the generation.
         #[ignore]
         #[test]
         fn minter_t1_address_is_missing() {
@@ -149,7 +157,10 @@ mod mint_single_nft {
                     false,
                     <Nfts<TestRuntime>>::contains_key(&context.generate_nft_id())
                 );
-                assert_eq!(false, <NftInfos>::contains_key(&expected_info_id));
+                assert_eq!(
+                    false,
+                    <NftInfos<TestRuntime>>::contains_key(&expected_info_id)
+                );
                 assert_eq!(false, context.event_emitted_with_single_nft_minted());
 
                 assert_noop!(
@@ -171,7 +182,10 @@ mod mint_single_nft {
                     false,
                     <Nfts<TestRuntime>>::contains_key(&context.generate_nft_id())
                 );
-                assert_eq!(false, <NftInfos>::contains_key(&expected_info_id));
+                assert_eq!(
+                    false,
+                    <NftInfos<TestRuntime>>::contains_key(&expected_info_id)
+                );
                 assert_eq!(false, context.event_emitted_with_single_nft_minted());
 
                 context.unique_external_ref = Vec::<u8>::new();
@@ -214,7 +228,10 @@ mod mint_single_nft {
                     false,
                     <Nfts<TestRuntime>>::contains_key(&context.generate_nft_id())
                 );
-                assert_eq!(false, <NftInfos>::contains_key(&expected_info_id));
+                assert_eq!(
+                    false,
+                    <NftInfos<TestRuntime>>::contains_key(&expected_info_id)
+                );
                 assert_eq!(false, context.event_emitted_with_single_nft_minted());
 
                 context.royalties = vec![Royalty {

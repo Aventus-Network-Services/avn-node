@@ -22,6 +22,7 @@ use codec::Encode;
 use frame_support::{assert_noop, assert_ok, error::BadOrigin};
 use frame_system::RawOrigin;
 use sp_core::{sr25519::Pair, U256};
+use crate::mock::AccountId;
 
 fn build_proof(
     signer: &AccountId,
