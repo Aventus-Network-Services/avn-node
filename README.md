@@ -1,5 +1,16 @@
 # AvN Node
 
+## Deprecation Notice
+
+This repository is deprecated; No further Issues or Pull Requests will be considered or approved.
+
+Further interest should be directed to the new repository that represents us a parachain. If you'd like to check out the latest version of the source code, report any issues, contribute any improvements, or download the latest release, please do so at:
+
+<https://github.com/Aventus-Network-Services/avn-parachain>
+
+---
+
+
 ![image](./extras/aventus.jpg)
 
 Aventus Network belongs to the new generation of composable blockchain networks built for scalability and interoperability 🚀. It is capable of high transaction throughput, provides deterministic finality, low and predictable transaction costs. The network currently operates as a layer-2 to Ethereum, and is used by several production applications.
