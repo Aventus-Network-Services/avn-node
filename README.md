@@ -4,7 +4,7 @@
 
 This repository is deprecated; No further Issues or Pull Requests will be considered or approved.
 
-Further interest should be directed to the new repository that represents us a parachain. If you'd like to check out the latest version of the source code, report any issues, contribute any improvements, or download the latest release, please do so at:
+Further interest should be directed to the new repository. If you'd like to check out the latest version of the source code, report any issues, contribute any improvements, or download the latest release, please do so at:
 
 <https://github.com/Aventus-Network-Services/avn-parachain>
 
